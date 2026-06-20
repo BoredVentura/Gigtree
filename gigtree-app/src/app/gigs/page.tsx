@@ -144,9 +144,12 @@ export default function GigsPage() {
                   <button className="rounded-full border border-black/10 px-5 py-3 font-semibold">
                     Save
                   </button>
-                  <button className="rounded-full bg-[#2f6f3e] px-5 py-3 font-semibold text-white">
-                    Apply
-                  </button>
+                  <a
+                    href={`/gigs/${gig.id}`}
+                    className="rounded-full bg-[#2f6f3e] px-5 py-3 text-center font-semibold text-white"
+                  >
+                    View & apply
+                  </a>
                 </div>
               </div>
             </article>
