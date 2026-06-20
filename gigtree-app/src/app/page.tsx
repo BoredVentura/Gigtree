@@ -29,7 +29,7 @@ export default function Home() {
         <nav className="flex items-center justify-between">
           <div className="text-2xl font-bold tracking-tight">Gigtree</div>
           <div className="flex items-center gap-3 text-sm">
-            <a href="#gigs" className="hidden sm:inline hover:underline">Browse gigs</a>
+            <a href="/gigs" className="hidden sm:inline hover:underline">Browse gigs</a>
             <a href="#how" className="hidden sm:inline hover:underline">How it works</a>
             <button className="rounded-full border border-[#172014]/20 px-4 py-2">Sign in</button>
           </div>
@@ -51,7 +51,7 @@ export default function Home() {
             </p>
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <a href="#gigs" className="rounded-full bg-[#2f6f3e] px-6 py-3 text-center font-semibold text-white shadow-sm">
+              <a href="/gigs" className="rounded-full bg-[#2f6f3e] px-6 py-3 text-center font-semibold text-white shadow-sm">
                 Browse gigs
               </a>
               <a href="#post" className="rounded-full bg-white px-6 py-3 text-center font-semibold shadow-sm">
