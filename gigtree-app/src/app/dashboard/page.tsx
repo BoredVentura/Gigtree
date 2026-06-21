@@ -26,6 +26,12 @@ const dashboardCards = [
     action: "Post a gig",
   },
   {
+    title: "My posted gigs",
+    description: "View the gigs you have created and track their status.",
+    href: "/posted-gigs",
+    action: "View posted gigs",
+  },
+  {
     title: "Post a gig request",
     description: "Request approval to post gigs through Gigtree.",
     href: "/post-request",
