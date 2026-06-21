@@ -29,6 +29,7 @@ export default function ProfilePage() {
   const [portfolioLinks, setPortfolioLinks] = useState("");
   const [cvFileUrl, setCvFileUrl] = useState("");
   const [message, setMessage] = useState("Loading profile...");
+  const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [uploadingCv, setUploadingCv] = useState(false);
 
@@ -298,6 +299,59 @@ export default function ProfilePage() {
               <p className="mt-3 text-sm text-[#42513c]">Uploading CV...</p>
             )}
           </div>
+
+        <label className="flex items-start gap-3 rounded-2xl bg-[#f6f8f4] p-4 text-sm text-[#42513c]">
+          <input
+            type="checkbox"
+            checked={ageConfirmed}
+            onChange={async (event) => {
+              const checked = event.target.checked;
+              setAgeConfirmed(checked);
+
+              const {
+                data: { user },
+              } = await supabase.auth.getUser();
+
+              if (user) {
+                const { error } = await supabase
+                  .from("profiles")
+                  .update({
+                    age_confirmed: checked,
+                    age_confirmed_at: checked ? new Date().toISOString() : null,
+                  })
+                  .eq("id", user.id);
+
+                if (error) {
+                  setMessage(error.message);
+                } else {
+                  setMessage(
+                    checked
+                      ? "18+ confirmation saved."
+                      : "18+ confirmation removed."
+                  );
+                }
+              }
+            }}
+            className="mt-1"
+          />
+          <span>
+            I confirm that I am 18 or over and agree to Gigtree's{" "}
+            <a href="/terms" className="font-semibold text-[#2f6f3e] underline">
+              Terms
+            </a>
+            ,{" "}
+            <a href="/privacy" className="font-semibold text-[#2f6f3e] underline">
+              Privacy Notice
+            </a>
+            , and{" "}
+            <a href="/safety" className="font-semibold text-[#2f6f3e] underline">
+              Safety Rules
+            </a>
+            .
+          </span>
+        </label>
+
+
 
           <button
             type="button"

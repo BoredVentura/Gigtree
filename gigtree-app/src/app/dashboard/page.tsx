@@ -8,6 +8,7 @@ type Profile = {
   full_name: string | null;
   can_post_gigs: boolean | null;
   is_admin: boolean | null;
+  age_confirmed: boolean | null;
 };
 
 const cards = [
@@ -102,7 +103,7 @@ export default function DashboardPage() {
 
       const { data, error } = await supabase
         .from("profiles")
-        .select("full_name,can_post_gigs,is_admin")
+        .select("full_name,can_post_gigs,is_admin,age_confirmed")
         .eq("id", user.id)
         .single();
 
@@ -175,6 +176,22 @@ export default function DashboardPage() {
             </a>
           )}
         </div>
+
+        {!message && profile && !profile.age_confirmed && (
+          <div className="mb-6 rounded-3xl border border-[#d28b28]/30 bg-[#fff7e8] p-6 shadow-sm">
+            <h2 className="text-2xl font-bold">Age confirmation needed</h2>
+            <p className="mt-3 text-[#42513c]">
+              Gigtree is for users aged 18 or over. Please confirm this before
+              using the platform fully.
+            </p>
+            <a
+              href="/profile"
+              className="mt-5 inline-block rounded-full bg-[#2f6f3e] px-5 py-3 font-semibold text-white"
+            >
+              Confirm in profile
+            </a>
+          </div>
+        )}
 
         {message && (
           <div className="mb-6 rounded-3xl bg-white p-6 text-[#42513c] shadow-sm">
