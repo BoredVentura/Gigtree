@@ -22,7 +22,7 @@ const dashboardCards = [
   {
     title: "Post a gig request",
     description: "Request approval to post gigs through Gigtree.",
-    href: "#",
+    href: "/post-request",
     action: "Request access",
   },
   {
