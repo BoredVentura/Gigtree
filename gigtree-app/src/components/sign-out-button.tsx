@@ -2,7 +2,7 @@
 
 import { supabase } from "@/lib/supabase";
 
-export function SignOutButton() {
+export default function SignOutButton() {
   async function signOut() {
     await supabase.auth.signOut();
     window.location.href = "/";
@@ -12,7 +12,7 @@ export function SignOutButton() {
     <button
       type="button"
       onClick={signOut}
-      className="rounded-full border border-[#172014]/20 px-4 py-2"
+      className="rounded-full border border-black/10 px-4 py-2 font-semibold hover:bg-white"
     >
       Sign out
     </button>
