@@ -3,117 +3,133 @@
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 
-export function ApplyForm({ gigId }: { gigId: string }) {
-  const [availability, setAvailability] = useState("");
-  const [experience, setExperience] = useState("");
-  const [confirmed, setConfirmed] = useState(false);
-  const [message, setMessage] = useState("");
-  const [loading, setLoading] = useState(false);
+type ApplyFormProps = {
+  gigId: string;
+};
 
-  async function submitApplication() {
-    setLoading(true);
+export function ApplyForm({ gigId }: ApplyFormProps) {
+  const [availableFrom, setAvailableFrom] = useState("");
+  const [availableUntil, setAvailableUntil] = useState("");
+  const [availabilityNote, setAvailabilityNote] = useState("");
+  const [message, setMessage] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  async function submitApplication(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     setMessage("");
+
+    if (!availableFrom || !availableUntil) {
+      setMessage("Please choose your available date range.");
+      return;
+    }
+
+    if (availableUntil < availableFrom) {
+      setMessage("Available until must be after available from.");
+      return;
+    }
+
+    setIsSubmitting(true);
 
     const {
       data: { user },
-      error: userError,
     } = await supabase.auth.getUser();
 
-    if (userError || !user) {
+    if (!user) {
       setMessage("Please sign in before applying.");
-      setLoading(false);
+      setIsSubmitting(false);
       return;
     }
 
-    if (!availability.trim() || !experience.trim() || !confirmed) {
-      setMessage("Please complete all fields and confirm the requirements.");
-      setLoading(false);
-      return;
-    }
+    const availabilityAnswer = `Available from ${availableFrom} until ${availableUntil}${
+      availabilityNote ? `. Notes: ${availabilityNote}` : ""
+    }`;
+
+    const experienceAnswer =
+      availabilityNote ||
+      "Worker has applied with profile experience for admin review.";
 
     const { error } = await supabase.from("gig_applications").insert({
       gig_id: gigId,
       worker_id: user.id,
-      availability_answer: availability,
-      experience_answer: experience,
-      requirements_confirmed: confirmed,
       status: "submitted",
+      availability_answer: availabilityAnswer,
+      experience_answer: experienceAnswer,
+      requirements_confirmed: true,
+      available_from: availableFrom,
+      available_until: availableUntil,
+      availability_note: availabilityNote,
     });
 
     if (error) {
-      if (error.code === "23505") {
-        setMessage("You have already applied for this gig.");
-      } else {
-        setMessage(error.message);
-      }
-    } else {
-      setMessage("Application submitted. Gigtree will review it before making recommendations.");
-      setAvailability("");
-      setExperience("");
-      setConfirmed(false);
+      setMessage(error.message);
+      setIsSubmitting(false);
+      return;
     }
 
-    setLoading(false);
+    setMessage("Application sent. Gigtree will review your fit for this gig.");
+    setAvailableFrom("");
+    setAvailableUntil("");
+    setAvailabilityNote("");
+    setIsSubmitting(false);
   }
 
   return (
-    <form className="mt-6 space-y-4">
+    <form onSubmit={submitApplication} className="grid gap-4">
       <div>
-        <label className="text-sm font-semibold">Availability</label>
-        <input
-          value={availability}
-          onChange={(event) => setAvailability(event.target.value)}
-          className="mt-2 w-full rounded-2xl border border-black/10 px-4 py-3 outline-none"
-          placeholder="When are you available?"
-        />
+        <h3 className="text-xl font-black">Your availability</h3>
+        <p className="mt-2 text-sm leading-6 text-[#42513c]">
+          Choose the date range when you are available for this gig.
+        </p>
       </div>
 
-      <div>
-        <label className="text-sm font-semibold">Relevant experience</label>
+      <div className="grid gap-3 md:grid-cols-2">
+        <label>
+          <span className="text-sm font-semibold">Available from</span>
+          <input
+            type="date"
+            value={availableFrom}
+            onChange={(event) => setAvailableFrom(event.target.value)}
+            className="mt-2 w-full rounded-2xl border border-black/10 bg-[#fbfff6] p-4 outline-none focus:border-[#2f6f3e]"
+            required
+          />
+        </label>
+
+        <label>
+          <span className="text-sm font-semibold">Available until</span>
+          <input
+            type="date"
+            value={availableUntil}
+            onChange={(event) => setAvailableUntil(event.target.value)}
+            min={availableFrom || undefined}
+            className="mt-2 w-full rounded-2xl border border-black/10 bg-[#fbfff6] p-4 outline-none focus:border-[#2f6f3e]"
+            required
+          />
+        </label>
+      </div>
+
+      <label>
+        <span className="text-sm font-semibold">Availability notes</span>
         <textarea
-          value={experience}
-          onChange={(event) => setExperience(event.target.value)}
-          className="mt-2 min-h-32 w-full rounded-2xl border border-black/10 px-4 py-3 outline-none"
-          placeholder="Briefly describe relevant experience"
+          value={availabilityNote}
+          onChange={(event) => setAvailabilityNote(event.target.value)}
+          className="mt-2 min-h-28 w-full rounded-2xl border border-black/10 bg-[#fbfff6] p-4 outline-none focus:border-[#2f6f3e]"
+          placeholder="Example: I’m free weekdays after 5pm, or weekends all day."
         />
-      </div>
-
-      <label className="flex gap-3 rounded-2xl bg-[#f6f8f4] p-4 text-sm text-[#42513c]">
-        <input
-          type="checkbox"
-          checked={confirmed}
-          onChange={(event) => setConfirmed(event.target.checked)}
-          className="mt-1"
-        />
-        <span>
-          I confirm I meet the requirements and understand that Gigtree may
-          review my application before recommending me.
-        </span>
       </label>
 
-      {message && (
-        <div className="rounded-2xl bg-[#f6f8f4] p-4 text-sm text-[#42513c]">
-          {message}
-        </div>
-      )}
-
-      {message === "Please sign in before applying." && (
-        <a
-          href="/login"
-          className="block rounded-full border border-black/10 px-5 py-3 text-center font-semibold"
-        >
-          Sign in to apply
-        </a>
-      )}
-
       <button
-        type="button"
-        onClick={submitApplication}
-        disabled={loading}
-        className="w-full rounded-full bg-[#2f6f3e] px-5 py-3 font-semibold text-white disabled:opacity-60"
+        type="submit"
+        disabled={isSubmitting}
+        className="rounded-full bg-[#2f6f3e] px-6 py-4 font-bold text-white shadow-xl shadow-[#2f6f3e]/20 disabled:opacity-60"
       >
-        {loading ? "Submitting..." : "Submit application"}
+        {isSubmitting ? "Sending..." : "Apply for this gig"}
       </button>
+
+      {message && (
+        <p className="rounded-2xl bg-[#f6f8f4] p-4 text-sm leading-6 text-[#42513c]">
+          {message}
+        </p>
+      )}
     </form>
   );
 }
