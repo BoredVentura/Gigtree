@@ -1,4 +1,5 @@
 "use client";
+import { SiteHeader } from "@/components/site-header";
 
 import { FormEvent, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
@@ -129,26 +130,7 @@ export default function PostRequestPage() {
         <div className="absolute bottom-0 right-1/4 h-72 w-72 rounded-full bg-[#ffe08a]/30 blur-3xl" />
 
         <div className="relative mx-auto max-w-7xl px-6 py-8">
-          <nav className="flex flex-wrap items-center justify-between gap-4">
-            <a href="/" className="flex items-center gap-3">
-              <span className="grid h-11 w-11 place-items-center rounded-2xl bg-[#2f6f3e] text-xl text-white shadow-lg shadow-[#2f6f3e]/20">
-                ✦
-              </span>
-              <span className="text-2xl font-black tracking-tight">Gigtree</span>
-            </a>
-
-            <div className="flex flex-wrap items-center gap-3 text-sm font-semibold">
-              <a href="/dashboard" className="rounded-full px-4 py-2 hover:bg-white">
-                Dashboard
-              </a>
-              <a href="/posted-gigs" className="rounded-full px-4 py-2 hover:bg-white">
-                Posted gigs
-              </a>
-              <a href="/gigs" className="rounded-full px-4 py-2 hover:bg-white">
-                Browse gigs
-              </a>
-            </div>
-          </nav>
+          <SiteHeader active="post" />
 
           <div className="grid gap-10 py-16 lg:grid-cols-[1fr_420px]">
             <div>
