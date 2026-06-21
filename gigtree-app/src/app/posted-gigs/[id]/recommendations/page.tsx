@@ -3,17 +3,12 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
-type Gig = {
-  id: string;
-  title: string;
-  poster_id: string;
-};
-
 type Recommendation = {
   id: string;
   application_id: string;
   anonymous_label: string;
   summary: string;
+  fit_notes: string | null;
   status: "draft" | "sent_to_poster" | "selected" | "declined";
   created_at: string;
   gig_applications: {
@@ -21,7 +16,22 @@ type Recommendation = {
   } | null;
 };
 
-export default function PostedGigRecommendationsPage({
+type Gig = {
+  id: string;
+  title: string;
+  category: string;
+  location_area: string | null;
+  schedule_summary: string | null;
+};
+
+function formatStatus(status: string) {
+  return status
+    .split("_")
+    .map((word) => word[0].toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+export default function PosterRecommendationsPage({
   params,
 }: {
   params: Promise<{ id: string }>;
@@ -47,17 +57,13 @@ export default function PostedGigRecommendationsPage({
 
     const { data: gigData, error: gigError } = await supabase
       .from("gigs")
-      .select("id,title,poster_id")
+      .select("id,title,category,location_area,schedule_summary")
       .eq("id", resolvedParams.id)
+      .eq("poster_id", user.id)
       .single();
 
-    if (gigError || !gigData) {
-      setMessage("Gig not found.");
-      return;
-    }
-
-    if (gigData.poster_id !== user.id) {
-      setMessage("You can only view recommendations for gigs you posted.");
+    if (gigError) {
+      setMessage(gigError.message);
       return;
     }
 
@@ -65,9 +71,22 @@ export default function PostedGigRecommendationsPage({
 
     const { data, error } = await supabase
       .from("admin_recommendations")
-      .select("id,application_id,anonymous_label,summary,status,created_at,gig_applications(worker_id)")
+      .select(
+        `
+        id,
+        application_id,
+        anonymous_label,
+        summary,
+        fit_notes,
+        status,
+        created_at,
+        gig_applications (
+          worker_id
+        )
+      `
+      )
       .eq("gig_id", resolvedParams.id)
-      .in("status", ["draft", "sent_to_poster", "selected"])
+      .in("status", ["sent_to_poster", "selected", "declined"])
       .order("created_at", { ascending: true });
 
     if (error) {
@@ -81,11 +100,19 @@ export default function PostedGigRecommendationsPage({
 
   useEffect(() => {
     loadRecommendations();
-  }, [params]);
+  }, []);
 
   async function selectCandidate(recommendation: Recommendation) {
     setLoadingId(recommendation.id);
     setMessage("");
+
+    const workerId = recommendation.gig_applications?.worker_id;
+
+    if (!workerId) {
+      setMessage("Worker ID could not be found for this recommendation.");
+      setLoadingId("");
+      return;
+    }
 
     const { error: recommendationError } = await supabase
       .from("admin_recommendations")
@@ -115,14 +142,6 @@ export default function PostedGigRecommendationsPage({
       return;
     }
 
-    const workerId = recommendation.gig_applications?.worker_id;
-
-    if (!workerId) {
-      setMessage("Candidate selected, but worker ID could not be found.");
-      setLoadingId("");
-      return;
-    }
-
     const { error: confirmationError } = await supabase
       .from("worker_acceptance_confirmations")
       .upsert(
@@ -131,7 +150,6 @@ export default function PostedGigRecommendationsPage({
           application_id: recommendation.application_id,
           worker_id: workerId,
           status: "pending_worker_confirmation",
-          poster_selected_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         },
         { onConflict: "application_id" }
@@ -143,57 +161,52 @@ export default function PostedGigRecommendationsPage({
       return;
     }
 
-    setRecommendations((current) =>
-      current.map((item) =>
-        item.id === recommendation.id ? { ...item, status: "selected" } : item
-      )
-    );
-
+    await loadRecommendations();
     setMessage(
-      "Candidate selected. Next step: worker confirmation before identity/contact is revealed."
+      `${recommendation.anonymous_label} selected. The worker now needs to confirm they still accept the gig.`
     );
     setLoadingId("");
   }
 
-  const hasSelectedCandidate = recommendations.some(
-    (recommendation) => recommendation.status === "selected"
-  );
-
   return (
     <main className="min-h-screen bg-[#f6f8f4] text-[#172014]">
-      <section className="mx-auto max-w-5xl px-6 py-8">
-        <nav className="flex items-center justify-between">
+      <section className="mx-auto max-w-6xl px-6 py-8">
+        <nav className="flex flex-wrap items-center justify-between gap-4">
           <a href="/" className="text-2xl font-bold tracking-tight">
             Gigtree
           </a>
-          <div className="flex items-center gap-3 text-sm">
-            <a href="/posted-gigs" className="hidden sm:inline hover:underline">
+          <div className="flex flex-wrap items-center gap-3 text-sm">
+            <a href="/dashboard" className="hover:underline">
+              Dashboard
+            </a>
+            <a href="/posted-gigs" className="hover:underline">
               My posted gigs
             </a>
-            <a href="/dashboard" className="hidden sm:inline hover:underline">
-              Dashboard
+            <a href="/contacts" className="hover:underline">
+              Contacts
             </a>
           </div>
         </nav>
 
         <div className="py-12">
-          <p className="font-semibold text-[#2f6f3e]">Candidate recommendations</p>
+          <p className="font-semibold text-[#2f6f3e]">Anonymous recommendations</p>
           <h1 className="mt-3 max-w-3xl text-4xl font-black tracking-tight sm:text-5xl">
-            {gig ? gig.title : "Gig recommendations"}
+            Review candidates for {gig?.title ?? "this gig"}.
           </h1>
           <p className="mt-5 max-w-2xl text-lg leading-8 text-[#42513c]">
-            Choose an anonymous candidate summary. The worker must confirm
-            before identity or contact details are revealed.
+            Gigtree shows anonymous Candidate A/B summaries first. Names, CVs,
+            phone numbers, and direct contact details stay hidden until a
+            candidate is selected and the worker confirms.
           </p>
         </div>
 
         {message && (
-          <div className="mb-6 rounded-3xl bg-white p-6 shadow-sm">
-            <p className="text-[#42513c]">{message}</p>
+          <div className="mb-6 rounded-3xl bg-white p-5 text-[#42513c] shadow-sm">
+            {message}
             {message.includes("sign in") && (
               <a
                 href="/login"
-                className="mt-5 inline-block rounded-full bg-[#2f6f3e] px-5 py-3 font-semibold text-white"
+                className="mt-4 inline-block rounded-full bg-[#2f6f3e] px-5 py-3 font-semibold text-white"
               >
                 Sign in
               </a>
@@ -201,11 +214,29 @@ export default function PostedGigRecommendationsPage({
           </div>
         )}
 
+        {gig && (
+          <section className="mb-6 rounded-3xl bg-white p-6 shadow-sm">
+            <div className="flex flex-wrap gap-2 text-sm">
+              <span className="rounded-full bg-[#e8f0e4] px-3 py-1 font-semibold text-[#2f6f3e]">
+                {gig.category}
+              </span>
+              <span className="rounded-full bg-[#f6f8f4] px-3 py-1 font-semibold">
+                {gig.location_area ?? "Remote UK"}
+              </span>
+              <span className="rounded-full bg-[#f6f8f4] px-3 py-1 font-semibold">
+                {gig.schedule_summary ?? "Flexible"}
+              </span>
+            </div>
+          </section>
+        )}
+
         {!message && recommendations.length === 0 && (
           <div className="rounded-3xl bg-white p-6 shadow-sm">
             <h2 className="text-2xl font-bold">No recommendations yet</h2>
             <p className="mt-3 text-[#42513c]">
-              Gigtree admin has not created candidate summaries for this gig yet.
+              Gigtree admin has not sent anonymous candidates for this gig yet.
+              Once admin reviews applications, Candidate A/B summaries will
+              appear here.
             </p>
           </div>
         )}
@@ -216,57 +247,74 @@ export default function PostedGigRecommendationsPage({
               key={recommendation.id}
               className="rounded-3xl border border-black/10 bg-white p-6 shadow-sm"
             >
-              <div className="mb-3 flex flex-wrap gap-2 text-sm">
-                <span className="rounded-full bg-[#e8f0e4] px-3 py-1 font-medium text-[#2f6f3e]">
-                  {recommendation.anonymous_label}
-                </span>
-                <span className="rounded-full bg-[#f6f8f4] px-3 py-1 font-medium">
-                  {recommendation.status.replaceAll("_", " ")}
-                </span>
-              </div>
+              <div className="flex flex-col justify-between gap-5 md:flex-row">
+                <div>
+                  <div className="mb-3 flex flex-wrap gap-2 text-sm">
+                    <span className="rounded-full bg-[#e8f0e4] px-3 py-1 font-semibold text-[#2f6f3e]">
+                      {recommendation.anonymous_label}
+                    </span>
+                    <span className="rounded-full bg-[#f6f8f4] px-3 py-1 font-semibold">
+                      {formatStatus(recommendation.status)}
+                    </span>
+                  </div>
 
-              <h2 className="text-2xl font-bold">
-                {recommendation.anonymous_label}
-              </h2>
+                  <h2 className="text-2xl font-bold">
+                    {recommendation.anonymous_label}
+                  </h2>
 
-              <p className="mt-4 text-lg leading-8 text-[#42513c]">
-                {recommendation.summary}
-              </p>
+                  <div className="mt-5 rounded-2xl bg-[#f6f8f4] p-4">
+                    <p className="font-semibold">Admin summary</p>
+                    <p className="mt-2 whitespace-pre-wrap leading-7 text-[#42513c]">
+                      {recommendation.summary}
+                    </p>
+                  </div>
 
-              <div className="mt-6 rounded-2xl bg-[#f6f8f4] p-4 text-sm text-[#42513c]">
-                Identity, CV, and contact details are hidden at this stage.
-              </div>
+                  {recommendation.fit_notes && (
+                    <div className="mt-3 rounded-2xl bg-[#e8f0e4] p-4">
+                      <p className="font-semibold text-[#2f6f3e]">
+                        Why this candidate may fit
+                      </p>
+                      <p className="mt-2 whitespace-pre-wrap leading-7 text-[#42513c]">
+                        {recommendation.fit_notes}
+                      </p>
+                    </div>
+                  )}
 
-              {recommendation.status === "selected" ? (
-                <div className="mt-5 rounded-2xl bg-[#e8f0e4] p-4 text-sm font-semibold text-[#2f6f3e]">
-                  Selected. Waiting for worker confirmation.
+                  <div className="mt-3 rounded-2xl border border-black/10 p-4 text-sm text-[#42513c]">
+                    Selecting this candidate does not reveal direct contact
+                    immediately. The worker must confirm first.
+                  </div>
                 </div>
-              ) : (
-                <button
-                  type="button"
-                  disabled={loadingId === recommendation.id || hasSelectedCandidate}
-                  onClick={() => selectCandidate(recommendation)}
-                  className="mt-5 rounded-full bg-[#2f6f3e] px-5 py-3 font-semibold text-white disabled:opacity-50"
-                >
-                  {loadingId === recommendation.id
-                    ? "Selecting..."
-                    : hasSelectedCandidate
-                      ? "Candidate already selected"
-                      : "Select this candidate"}
-                </button>
-              )}
+
+                <div className="flex shrink-0 flex-col gap-2 md:justify-center">
+                  {recommendation.status === "selected" ? (
+                    <div className="rounded-2xl bg-[#e8f0e4] p-4 text-sm font-semibold text-[#2f6f3e]">
+                      Candidate selected. Waiting for worker confirmation.
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={loadingId === recommendation.id}
+                      onClick={() => selectCandidate(recommendation)}
+                      className="rounded-full bg-[#2f6f3e] px-5 py-3 font-semibold text-white disabled:opacity-50"
+                    >
+                      {loadingId === recommendation.id
+                        ? "Selecting..."
+                        : "Select this candidate"}
+                    </button>
+                  )}
+
+                  <a
+                    href="/posted-gigs"
+                    className="rounded-full border border-black/10 px-5 py-3 text-center font-semibold hover:bg-[#f6f8f4]"
+                  >
+                    Back to posted gigs
+                  </a>
+                </div>
+              </div>
             </article>
           ))}
         </div>
-
-        {gigId && (
-          <a
-            href="/posted-gigs"
-            className="mt-8 inline-block rounded-full border border-black/10 px-5 py-3 font-semibold"
-          >
-            Back to posted gigs
-          </a>
-        )}
       </section>
     </main>
   );
