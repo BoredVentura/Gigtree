@@ -46,6 +46,42 @@ function formatStatus(status: string) {
     .join(" ");
 }
 
+function statusText(status: Confirmation["status"]) {
+  if (status === "pending_worker_confirmation") {
+    return {
+      label: "Action needed",
+      description:
+        "A poster selected your anonymous candidate summary. You need to accept or decline before contact details are revealed.",
+      nextStep: "Accept if you still want the gig, or decline if you are no longer available.",
+    };
+  }
+
+  if (status === "accepted") {
+    return {
+      label: "Accepted",
+      description:
+        "You accepted this selected gig. Temporary masked contact details should now be available.",
+      nextStep: "Open Contact details to arrange the final details with the poster.",
+    };
+  }
+
+  if (status === "declined") {
+    return {
+      label: "Declined",
+      description:
+        "You declined this selected gig. Your contact details were not revealed.",
+      nextStep: "No further action needed.",
+    };
+  }
+
+  return {
+    label: "Expired",
+    description:
+      "This confirmation has expired and is no longer active.",
+    nextStep: "No further action needed.",
+  };
+}
+
 export default function ConfirmationsPage() {
   const [confirmations, setConfirmations] = useState<Confirmation[]>([]);
   const [message, setMessage] = useState("Loading confirmations...");
@@ -125,7 +161,7 @@ export default function ConfirmationsPage() {
     const { error: applicationError } = await supabase
       .from("gig_applications")
       .update({
-        status: status === "accepted" ? "accepted_by_worker" : "cancelled_by_admin",
+        status: status === "accepted" ? "accepted_by_worker" : "declined_by_worker",
         updated_at: new Date().toISOString(),
       })
       .eq("id", confirmation.application_id);
@@ -169,16 +205,12 @@ export default function ConfirmationsPage() {
       }
     }
 
-    setConfirmations((current) =>
-      current.map((item) =>
-        item.id === confirmation.id ? { ...item, status } : item
-      )
-    );
+    await loadConfirmations();
 
     setMessage(
       status === "accepted"
-        ? "Gig accepted. Next step: controlled contact reveal."
-        : "Gig declined."
+        ? "Gig accepted. Temporary masked contact details are now available."
+        : "Gig declined. Your contact details were not revealed."
     );
 
     setLoadingId("");
@@ -187,16 +219,22 @@ export default function ConfirmationsPage() {
   return (
     <main className="min-h-screen bg-[#f6f8f4] text-[#172014]">
       <section className="mx-auto max-w-6xl px-6 py-8">
-        <nav className="flex items-center justify-between">
+        <nav className="flex flex-wrap items-center justify-between gap-4">
           <a href="/" className="text-2xl font-bold tracking-tight">
             Gigtree
           </a>
-          <div className="flex items-center gap-3 text-sm">
-            <a href="/dashboard" className="hidden sm:inline hover:underline">
+          <div className="flex flex-wrap items-center gap-3 text-sm">
+            <a href="/dashboard" className="hover:underline">
               Dashboard
             </a>
-            <a href="/applications" className="hidden sm:inline hover:underline">
+            <a href="/applications" className="hover:underline">
               My applications
+            </a>
+            <a href="/contacts" className="hover:underline">
+              Contacts
+            </a>
+            <a href="/status" className="hover:underline">
+              Status
             </a>
           </div>
         </nav>
@@ -207,9 +245,9 @@ export default function ConfirmationsPage() {
             Confirm selected gigs.
           </h1>
           <p className="mt-5 max-w-2xl text-lg leading-8 text-[#42513c]">
-            When a poster selects your anonymous candidate summary, you confirm
-            whether you still accept the gig before identity or contact details
-            are revealed.
+            If a poster selects your anonymous candidate summary, you still
+            choose whether to accept before temporary contact details are
+            revealed.
           </p>
         </div>
 
@@ -234,89 +272,128 @@ export default function ConfirmationsPage() {
               Selected gigs will appear here when a poster chooses your
               anonymous candidate summary.
             </p>
+            <a
+              href="/gigs"
+              className="mt-5 inline-block rounded-full bg-[#2f6f3e] px-5 py-3 font-semibold text-white"
+            >
+              Browse gigs
+            </a>
           </div>
         )}
 
         <div className="grid gap-5">
-          {confirmations.map((confirmation) => (
-            <article
-              key={confirmation.id}
-              className="rounded-3xl border border-black/10 bg-white p-6 shadow-sm"
-            >
-              <div className="flex flex-col justify-between gap-5 md:flex-row">
-                <div>
-                  <div className="mb-3 flex flex-wrap gap-2 text-sm">
-                    <span className="rounded-full bg-[#e8f0e4] px-3 py-1 font-medium text-[#2f6f3e]">
-                      {formatStatus(confirmation.status)}
-                    </span>
-                    <span className="rounded-full bg-[#f6f8f4] px-3 py-1 font-medium">
-                      {confirmation.gigs?.category ?? "Gig"}
-                    </span>
-                  </div>
+          {confirmations.map((confirmation) => {
+            const info = statusText(confirmation.status);
 
-                  <h2 className="text-2xl font-bold">
-                    {confirmation.gigs?.title ?? "Unknown gig"}
-                  </h2>
-
-                  <div className="mt-4 grid gap-2 text-sm text-[#42513c] sm:grid-cols-3">
-                    <p>
-                      <span className="font-semibold text-[#172014]">
-                        Location:
-                      </span>{" "}
-                      {confirmation.gigs?.location_area ?? "Remote UK"}
-                    </p>
-                    <p>
-                      <span className="font-semibold text-[#172014]">
-                        Pay:
-                      </span>{" "}
-                      {formatPay(confirmation)}
-                    </p>
-                    <p>
-                      <span className="font-semibold text-[#172014]">
-                        Timing:
-                      </span>{" "}
-                      {confirmation.gigs?.schedule_summary ?? "Flexible"}
-                    </p>
-                  </div>
-
-                  <div className="mt-5 rounded-2xl bg-[#f6f8f4] p-4 text-sm text-[#42513c]">
-                    Poster selected your anonymous candidate summary on{" "}
-                    {new Date(
-                      confirmation.poster_selected_at
-                    ).toLocaleDateString()}
-                    .
-                  </div>
-                </div>
-
-                <div className="flex shrink-0 flex-col gap-2 md:justify-center">
-                  {confirmation.status === "pending_worker_confirmation" ? (
-                    <>
-                      <button
-                        type="button"
-                        disabled={loadingId === confirmation.id}
-                        onClick={() => updateConfirmation(confirmation, "accepted")}
-                        className="rounded-full bg-[#2f6f3e] px-5 py-3 font-semibold text-white disabled:opacity-50"
-                      >
-                        Accept gig
-                      </button>
-                      <button
-                        type="button"
-                        disabled={loadingId === confirmation.id}
-                        onClick={() => updateConfirmation(confirmation, "declined")}
-                        className="rounded-full border border-black/10 px-5 py-3 font-semibold disabled:opacity-50"
-                      >
-                        Decline
-                      </button>
-                    </>
-                  ) : (
-                    <div className="rounded-2xl bg-[#f6f8f4] p-4 text-sm font-semibold text-[#42513c]">
-                      {formatStatus(confirmation.status)}
+            return (
+              <article
+                key={confirmation.id}
+                className="rounded-3xl border border-black/10 bg-white p-6 shadow-sm"
+              >
+                <div className="flex flex-col justify-between gap-5 md:flex-row">
+                  <div>
+                    <div className="mb-3 flex flex-wrap gap-2 text-sm">
+                      <span className="rounded-full bg-[#e8f0e4] px-3 py-1 font-semibold text-[#2f6f3e]">
+                        {info.label}
+                      </span>
+                      <span className="rounded-full bg-[#f6f8f4] px-3 py-1 font-semibold">
+                        {confirmation.gigs?.category ?? "Gig"}
+                      </span>
+                      <span className="rounded-full bg-[#f6f8f4] px-3 py-1 font-semibold">
+                        {formatStatus(confirmation.status)}
+                      </span>
                     </div>
-                  )}
+
+                    <h2 className="text-2xl font-bold">
+                      {confirmation.gigs?.title ?? "Unknown gig"}
+                    </h2>
+
+                    <div className="mt-4 grid gap-3 text-sm text-[#42513c] sm:grid-cols-3">
+                      <p className="rounded-2xl bg-[#f6f8f4] p-4">
+                        <span className="block font-semibold text-[#172014]">
+                          Location
+                        </span>
+                        {confirmation.gigs?.location_area ?? "Remote UK"}
+                      </p>
+
+                      <p className="rounded-2xl bg-[#f6f8f4] p-4">
+                        <span className="block font-semibold text-[#172014]">
+                          Pay
+                        </span>
+                        {formatPay(confirmation)}
+                      </p>
+
+                      <p className="rounded-2xl bg-[#f6f8f4] p-4">
+                        <span className="block font-semibold text-[#172014]">
+                          Timing
+                        </span>
+                        {confirmation.gigs?.schedule_summary ?? "Flexible"}
+                      </p>
+                    </div>
+
+                    <div className="mt-5 rounded-2xl bg-[#f6f8f4] p-4">
+                      <p className="font-semibold">What this means</p>
+                      <p className="mt-2 text-[#42513c]">{info.description}</p>
+                    </div>
+
+                    <div className="mt-3 rounded-2xl bg-[#e8f0e4] p-4">
+                      <p className="font-semibold text-[#2f6f3e]">Next step</p>
+                      <p className="mt-2 text-[#42513c]">{info.nextStep}</p>
+                    </div>
+
+                    <div className="mt-3 rounded-2xl border border-black/10 p-4 text-sm text-[#42513c]">
+                      Your direct contact details stay hidden until you accept.
+                      If you decline, contact is not revealed.
+                    </div>
+                  </div>
+
+                  <div className="flex shrink-0 flex-col gap-2 md:justify-center">
+                    {confirmation.status === "pending_worker_confirmation" ? (
+                      <>
+                        <button
+                          type="button"
+                          disabled={loadingId === confirmation.id}
+                          onClick={() => updateConfirmation(confirmation, "accepted")}
+                          className="rounded-full bg-[#2f6f3e] px-5 py-3 font-semibold text-white disabled:opacity-50"
+                        >
+                          {loadingId === confirmation.id
+                            ? "Accepting..."
+                            : "Accept gig"}
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={loadingId === confirmation.id}
+                          onClick={() => updateConfirmation(confirmation, "declined")}
+                          className="rounded-full border border-black/10 px-5 py-3 font-semibold disabled:opacity-50"
+                        >
+                          Decline
+                        </button>
+                      </>
+                    ) : confirmation.status === "accepted" ? (
+                      <a
+                        href="/contacts"
+                        className="rounded-full bg-[#2f6f3e] px-5 py-3 text-center font-semibold text-white"
+                      >
+                        View contact details
+                      </a>
+                    ) : (
+                      <div className="rounded-2xl bg-[#f6f8f4] p-4 text-sm font-semibold text-[#42513c]">
+                        {formatStatus(confirmation.status)}
+                      </div>
+                    )}
+
+                    <a
+                      href="/applications"
+                      className="rounded-full border border-black/10 px-5 py-3 text-center font-semibold hover:bg-[#f6f8f4]"
+                    >
+                      View applications
+                    </a>
+                  </div>
                 </div>
-              </div>
-            </article>
-          ))}
+              </article>
+            );
+          })}
         </div>
       </section>
     </main>
