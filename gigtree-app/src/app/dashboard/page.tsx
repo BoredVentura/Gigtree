@@ -50,6 +50,12 @@ const dashboardCards = [
     action: "Request access",
   },
   {
+    title: "Contact details",
+    description: "View temporary masked contact details for accepted gigs.",
+    href: "/contacts",
+    action: "View contacts",
+  },
+  {
     title: "Payments",
     description: "View held payments, pending verification, and payout status.",
     href: "#",

@@ -19,6 +19,7 @@ type Confirmation = {
     hourly_rate: number | null;
     fixed_amount: number | null;
     schedule_summary: string | null;
+    poster_id: string;
   } | null;
 };
 
@@ -78,7 +79,8 @@ export default function ConfirmationsPage() {
           pay_type,
           hourly_rate,
           fixed_amount,
-          schedule_summary
+          schedule_summary,
+          poster_id
         )
       `
       )
@@ -132,6 +134,39 @@ export default function ConfirmationsPage() {
       setMessage(applicationError.message);
       setLoadingId("");
       return;
+    }
+
+    if (status === "accepted") {
+      const posterId = confirmation.gigs?.poster_id;
+
+      if (!posterId) {
+        setMessage("Accepted, but poster could not be found for contact reveal.");
+        setLoadingId("");
+        return;
+      }
+
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 14);
+
+      const { error: contactError } = await supabase
+        .from("masked_contacts")
+        .upsert(
+          {
+            gig_id: confirmation.gig_id,
+            worker_id: confirmation.worker_id,
+            poster_id: posterId,
+            masked_email: `gig-${confirmation.gig_id.slice(0, 8)}@masked.gigtree.local`,
+            masked_phone: "+44 0000 000000",
+            expires_at: expiresAt.toISOString(),
+          },
+          { onConflict: "gig_id,worker_id,poster_id" }
+        );
+
+      if (contactError) {
+        setMessage(contactError.message);
+        setLoadingId("");
+        return;
+      }
     }
 
     setConfirmations((current) =>
