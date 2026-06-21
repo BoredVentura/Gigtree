@@ -28,6 +28,7 @@ export default function VerificationPage() {
   const [record, setRecord] = useState<VerificationRecord | null>(null);
   const [message, setMessage] = useState("Loading verification...");
   const [saving, setSaving] = useState(false);
+  const [ageConfirmed, setAgeConfirmed] = useState(false);
 
   const [fullLegalName, setFullLegalName] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
@@ -45,6 +46,14 @@ export default function VerificationPage() {
       setMessage("Please sign in to submit verification.");
       return;
     }
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("age_confirmed")
+      .eq("id", user.id)
+      .single();
+
+    setAgeConfirmed(Boolean(profile?.age_confirmed));
 
     const { data, error } = await supabase
       .from("verification_records")
@@ -87,6 +96,42 @@ export default function VerificationPage() {
 
     if (!user) {
       setMessage("Please sign in.");
+      setSaving(false);
+      return;
+    }
+
+    const { data: ageProfile, error: ageProfileError } = await supabase
+      .from("profiles")
+      .select("age_confirmed")
+      .eq("id", user.id)
+      .single();
+
+    if (ageProfileError) {
+      setMessage(ageProfileError.message);
+      setSaving(false);
+      return;
+    }
+
+    if (!ageProfile?.age_confirmed) {
+      setMessage("You must confirm you are 18 or over before submitting verification.");
+      setSaving(false);
+      return;
+    }
+
+    const { data: ageProfile, error: ageProfileError } = await supabase
+      .from("profiles")
+      .select("age_confirmed")
+      .eq("id", user.id)
+      .single();
+
+    if (ageProfileError) {
+      setMessage(ageProfileError.message);
+      setSaving(false);
+      return;
+    }
+
+    if (!ageProfile?.age_confirmed) {
+      setMessage("You must confirm you are 18 or over in your profile before submitting verification.");
       setSaving(false);
       return;
     }
@@ -218,6 +263,21 @@ export default function VerificationPage() {
           </div>
         )}
 
+        {!ageConfirmed && (
+          <div className="mb-6 rounded-3xl border border-[#d28b28]/30 bg-[#fff7e8] p-6 shadow-sm">
+            <h2 className="text-2xl font-bold">18+ confirmation required</h2>
+            <p className="mt-3 text-[#42513c]">
+              Verification is blocked until you confirm you are 18 or over in your profile.
+            </p>
+            <a
+              href="/profile"
+              className="mt-5 inline-block rounded-full bg-[#2f6f3e] px-5 py-3 font-semibold text-white"
+            >
+              Go to profile
+            </a>
+          </div>
+        )}
+
         <form
           onSubmit={submitVerification}
           className="grid gap-5 rounded-3xl bg-white p-6 shadow-sm"
@@ -306,7 +366,7 @@ export default function VerificationPage() {
           ) : (
             <button
               type="submit"
-              disabled={saving}
+              disabled={saving || !ageConfirmed}
               className="rounded-full bg-[#2f6f3e] px-6 py-4 font-semibold text-white disabled:opacity-50"
             >
               {saving ? "Submitting..." : "Submit verification"}

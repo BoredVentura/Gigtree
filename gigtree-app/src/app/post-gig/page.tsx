@@ -38,7 +38,7 @@ export default function PostGigPage() {
 
       const { data, error } = await supabase
         .from("profiles")
-        .select("can_post_gigs")
+        .select("can_post_gigs,age_confirmed")
         .eq("id", user.id)
         .single();
 
