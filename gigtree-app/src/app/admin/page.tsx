@@ -53,6 +53,12 @@ const adminCards: AdminCard[] = [
     action: "Release payouts",
   },
   {
+    title: "Audit logs",
+    description: "View important admin action history across the platform.",
+    href: "/admin/audit",
+    action: "View audit logs",
+  },
+  {
     title: "User status overview",
     description: "View the regular user status page for testing the end-to-end flow.",
     href: "/status",
