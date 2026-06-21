@@ -20,6 +20,18 @@ const dashboardCards = [
     action: "View applications",
   },
   {
+    title: "Worker confirmations",
+    description: "Accept or decline gigs after a poster selects you.",
+    href: "/confirmations",
+    action: "View confirmations",
+  },
+  {
+    title: "Worker confirmations",
+    description: "Accept or decline gigs after a poster selects you.",
+    href: "/confirmations",
+    action: "View confirmations",
+  },
+  {
     title: "Post a gig",
     description: "Create a new gig listing if your account has posting access.",
     href: "/post-gig",
