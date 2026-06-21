@@ -1,3 +1,5 @@
+import { SignOutButton } from "@/components/sign-out-button";
+
 const dashboardCards = [
   {
     title: "Worker profile",
@@ -43,21 +45,18 @@ export default function DashboardPage() {
             <a href="/gigs" className="hidden sm:inline hover:underline">
               Browse gigs
             </a>
-            <button className="rounded-full border border-[#172014]/20 px-4 py-2">
-              Sign out
-            </button>
+            <SignOutButton />
           </div>
         </nav>
 
         <div className="py-12">
           <p className="font-semibold text-[#2f6f3e]">Dashboard</p>
           <h1 className="mt-3 max-w-3xl text-4xl font-black tracking-tight sm:text-5xl">
-            Welcome back to Gigtree.
+            Manage your Gigtree account.
           </h1>
           <p className="mt-5 max-w-2xl text-lg leading-8 text-[#42513c]">
-            Manage your gig activity from one simple place. This dashboard will
-            later connect to your account, applications, posting access, and
-            payments.
+            Manage your profile, applications, posting requests, and payments
+            from one simple place.
           </p>
         </div>
 
@@ -80,11 +79,11 @@ export default function DashboardPage() {
         <div className="mt-8 rounded-3xl bg-[#e8f0e4] p-6">
           <p className="font-semibold text-[#2f6f3e]">MVP status</p>
           <h2 className="mt-2 text-2xl font-bold">
-            Next: accounts, profiles, and database connection
+            Next: poster access requests and admin tools
           </h2>
           <p className="mt-3 text-[#42513c]">
-            Once Supabase is connected, this dashboard will show real user data
-            instead of placeholder cards.
+            The worker side is now taking shape: accounts, profiles, CV upload,
+            applications, and saved application history.
           </p>
         </div>
       </section>
