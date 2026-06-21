@@ -11,6 +11,7 @@ type Gig = {
 
 type Recommendation = {
   id: string;
+  application_id: string;
   anonymous_label: string;
   summary: string;
   status: "draft" | "sent_to_poster" | "selected" | "declined";
@@ -26,57 +27,106 @@ export default function PostedGigRecommendationsPage({
   const [gig, setGig] = useState<Gig | null>(null);
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [message, setMessage] = useState("Loading recommendations...");
+  const [loadingId, setLoadingId] = useState("");
 
-  useEffect(() => {
-    async function loadParamsAndRecommendations() {
-      const resolvedParams = await params;
-      setGigId(resolvedParams.id);
+  async function loadRecommendations() {
+    const resolvedParams = await params;
+    setGigId(resolvedParams.id);
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-      if (!user) {
-        setMessage("Please sign in to view recommendations.");
-        return;
-      }
-
-      const { data: gigData, error: gigError } = await supabase
-        .from("gigs")
-        .select("id,title,poster_id")
-        .eq("id", resolvedParams.id)
-        .single();
-
-      if (gigError || !gigData) {
-        setMessage("Gig not found.");
-        return;
-      }
-
-      if (gigData.poster_id !== user.id) {
-        setMessage("You can only view recommendations for gigs you posted.");
-        return;
-      }
-
-      setGig(gigData as Gig);
-
-      const { data, error } = await supabase
-        .from("admin_recommendations")
-        .select("id,anonymous_label,summary,status,created_at")
-        .eq("gig_id", resolvedParams.id)
-        .in("status", ["draft", "sent_to_poster", "selected"])
-        .order("created_at", { ascending: true });
-
-      if (error) {
-        setMessage(error.message);
-        return;
-      }
-
-      setRecommendations((data ?? []) as Recommendation[]);
-      setMessage("");
+    if (!user) {
+      setMessage("Please sign in to view recommendations.");
+      return;
     }
 
-    loadParamsAndRecommendations();
+    const { data: gigData, error: gigError } = await supabase
+      .from("gigs")
+      .select("id,title,poster_id")
+      .eq("id", resolvedParams.id)
+      .single();
+
+    if (gigError || !gigData) {
+      setMessage("Gig not found.");
+      return;
+    }
+
+    if (gigData.poster_id !== user.id) {
+      setMessage("You can only view recommendations for gigs you posted.");
+      return;
+    }
+
+    setGig(gigData as Gig);
+
+    const { data, error } = await supabase
+      .from("admin_recommendations")
+      .select("id,application_id,anonymous_label,summary,status,created_at")
+      .eq("gig_id", resolvedParams.id)
+      .in("status", ["draft", "sent_to_poster", "selected"])
+      .order("created_at", { ascending: true });
+
+    if (error) {
+      setMessage(error.message);
+      return;
+    }
+
+    setRecommendations((data ?? []) as Recommendation[]);
+    setMessage("");
+  }
+
+  useEffect(() => {
+    loadRecommendations();
   }, [params]);
+
+  async function selectCandidate(recommendation: Recommendation) {
+    setLoadingId(recommendation.id);
+    setMessage("");
+
+    const { error: recommendationError } = await supabase
+      .from("admin_recommendations")
+      .update({
+        status: "selected",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", recommendation.id);
+
+    if (recommendationError) {
+      setMessage(recommendationError.message);
+      setLoadingId("");
+      return;
+    }
+
+    const { error: applicationError } = await supabase
+      .from("gig_applications")
+      .update({
+        status: "selected_by_poster",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", recommendation.application_id);
+
+    if (applicationError) {
+      setMessage(applicationError.message);
+      setLoadingId("");
+      return;
+    }
+
+    setRecommendations((current) =>
+      current.map((item) =>
+        item.id === recommendation.id ? { ...item, status: "selected" } : item
+      )
+    );
+
+    setMessage(
+      "Candidate selected. Next step: worker confirmation before identity/contact is revealed."
+    );
+    setLoadingId("");
+  }
+
+  const hasSelectedCandidate = recommendations.some(
+    (recommendation) => recommendation.status === "selected"
+  );
 
   return (
     <main className="min-h-screen bg-[#f6f8f4] text-[#172014]">
@@ -101,13 +151,13 @@ export default function PostedGigRecommendationsPage({
             {gig ? gig.title : "Gig recommendations"}
           </h1>
           <p className="mt-5 max-w-2xl text-lg leading-8 text-[#42513c]">
-            Gigtree shows anonymous candidate summaries first. Names, CVs, and
-            contact details stay hidden until the controlled selection flow.
+            Choose an anonymous candidate summary. The worker must confirm
+            before identity or contact details are revealed.
           </p>
         </div>
 
         {message && (
-          <div className="rounded-3xl bg-white p-6 shadow-sm">
+          <div className="mb-6 rounded-3xl bg-white p-6 shadow-sm">
             <p className="text-[#42513c]">{message}</p>
             {message.includes("sign in") && (
               <a
@@ -156,19 +206,31 @@ export default function PostedGigRecommendationsPage({
                 Identity, CV, and contact details are hidden at this stage.
               </div>
 
-              <button
-                type="button"
-                className="mt-5 rounded-full bg-[#2f6f3e] px-5 py-3 font-semibold text-white"
-              >
-                Select this candidate
-              </button>
+              {recommendation.status === "selected" ? (
+                <div className="mt-5 rounded-2xl bg-[#e8f0e4] p-4 text-sm font-semibold text-[#2f6f3e]">
+                  Selected. Waiting for worker confirmation.
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  disabled={loadingId === recommendation.id || hasSelectedCandidate}
+                  onClick={() => selectCandidate(recommendation)}
+                  className="mt-5 rounded-full bg-[#2f6f3e] px-5 py-3 font-semibold text-white disabled:opacity-50"
+                >
+                  {loadingId === recommendation.id
+                    ? "Selecting..."
+                    : hasSelectedCandidate
+                      ? "Candidate already selected"
+                      : "Select this candidate"}
+                </button>
+              )}
             </article>
           ))}
         </div>
 
         {gigId && (
           <a
-            href={`/posted-gigs`}
+            href="/posted-gigs"
             className="mt-8 inline-block rounded-full border border-black/10 px-5 py-3 font-semibold"
           >
             Back to posted gigs
