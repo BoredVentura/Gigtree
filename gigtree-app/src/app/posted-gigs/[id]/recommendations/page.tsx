@@ -240,7 +240,6 @@ export default function RecommendationDetailPage() {
       {
         gig_id: gig.id,
         application_id: application.id,
-        poster_id: userId,
         worker_id: application.worker_id,
         status: "waiting_for_worker",
         updated_at: new Date().toISOString(),

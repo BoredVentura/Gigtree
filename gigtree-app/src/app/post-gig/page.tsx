@@ -113,7 +113,6 @@ export default function PostGigPage() {
       category,
       description,
       location_area: isRemote ? null : locationArea,
-      is_remote: isRemote,
       pay_type: payType,
       fixed_amount: payType === "fixed" ? Number(fixedAmount) : null,
       hourly_rate: payType === "hourly" ? Number(hourlyRate) : null,
