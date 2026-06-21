@@ -16,6 +16,9 @@ type Recommendation = {
   summary: string;
   status: "draft" | "sent_to_poster" | "selected" | "declined";
   created_at: string;
+  gig_applications: {
+    worker_id: string;
+  } | null;
 };
 
 export default function PostedGigRecommendationsPage({
@@ -62,7 +65,7 @@ export default function PostedGigRecommendationsPage({
 
     const { data, error } = await supabase
       .from("admin_recommendations")
-      .select("id,application_id,anonymous_label,summary,status,created_at")
+      .select("id,application_id,anonymous_label,summary,status,created_at,gig_applications(worker_id)")
       .eq("gig_id", resolvedParams.id)
       .in("status", ["draft", "sent_to_poster", "selected"])
       .order("created_at", { ascending: true });
@@ -108,6 +111,34 @@ export default function PostedGigRecommendationsPage({
 
     if (applicationError) {
       setMessage(applicationError.message);
+      setLoadingId("");
+      return;
+    }
+
+    const workerId = recommendation.gig_applications?.worker_id;
+
+    if (!workerId) {
+      setMessage("Candidate selected, but worker ID could not be found.");
+      setLoadingId("");
+      return;
+    }
+
+    const { error: confirmationError } = await supabase
+      .from("worker_acceptance_confirmations")
+      .upsert(
+        {
+          gig_id: gigId,
+          application_id: recommendation.application_id,
+          worker_id: workerId,
+          status: "pending_worker_confirmation",
+          poster_selected_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "application_id" }
+      );
+
+    if (confirmationError) {
+      setMessage(confirmationError.message);
       setLoadingId("");
       return;
     }
