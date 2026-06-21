@@ -56,6 +56,12 @@ const dashboardCards = [
     action: "View contacts",
   },
   {
+    title: "Completion confirmations",
+    description: "Confirm completed gigs before admin payout review.",
+    href: "/completions",
+    action: "Confirm completion",
+  },
+  {
     title: "Payments",
     description: "View held payments, pending verification, and payout status.",
     href: "/payments",
