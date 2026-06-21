@@ -79,6 +79,13 @@ export default function AdminPage() {
   const [requests, setRequests] = useState<PosterAccessRequest[]>([]);
   const [message, setMessage] = useState("Loading admin control centre...");
   const [loadingId, setLoadingId] = useState("");
+  const [counts, setCounts] = useState({
+    pendingPosterRequests: 0,
+    submittedApplications: 0,
+    posterConfirmedCompletions: 0,
+    submittedVerifications: 0,
+    payoutsReady: 0,
+  });
 
   async function loadAdmin() {
     const {
@@ -120,6 +127,45 @@ export default function AdminPage() {
     }
 
     setRequests((requestData ?? []) as PosterAccessRequest[]);
+
+    const [
+      pendingPosterRequests,
+      submittedApplications,
+      posterConfirmedCompletions,
+      submittedVerifications,
+      payoutsReady,
+    ] = await Promise.all([
+      supabase
+        .from("poster_access_requests")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "pending"),
+      supabase
+        .from("gig_applications")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "submitted"),
+      supabase
+        .from("completion_confirmations")
+        .select("id", { count: "exact", head: true })
+        .eq("poster_confirmed", true)
+        .eq("admin_confirmed", false),
+      supabase
+        .from("verification_records")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "submitted"),
+      supabase
+        .from("payments")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "ready_for_release"),
+    ]);
+
+    setCounts({
+      pendingPosterRequests: pendingPosterRequests.count ?? 0,
+      submittedApplications: submittedApplications.count ?? 0,
+      posterConfirmedCompletions: posterConfirmedCompletions.count ?? 0,
+      submittedVerifications: submittedVerifications.count ?? 0,
+      payoutsReady: payoutsReady.count ?? 0,
+    });
+
     setMessage("");
   }
 
@@ -217,6 +263,68 @@ export default function AdminPage() {
 
         {profile?.is_admin && !message && (
           <>
+            <section className="mb-8 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+              <a
+                href="#poster-requests"
+                className="rounded-3xl bg-white p-5 shadow-sm"
+              >
+                <p className="text-sm font-semibold text-[#42513c]">
+                  Pending poster requests
+                </p>
+                <p className="mt-2 text-4xl font-black text-[#2f6f3e]">
+                  {counts.pendingPosterRequests}
+                </p>
+              </a>
+
+              <a
+                href="/admin/applications"
+                className="rounded-3xl bg-white p-5 shadow-sm"
+              >
+                <p className="text-sm font-semibold text-[#42513c]">
+                  Submitted applications
+                </p>
+                <p className="mt-2 text-4xl font-black text-[#2f6f3e]">
+                  {counts.submittedApplications}
+                </p>
+              </a>
+
+              <a
+                href="/admin/completions"
+                className="rounded-3xl bg-white p-5 shadow-sm"
+              >
+                <p className="text-sm font-semibold text-[#42513c]">
+                  Completion reviews
+                </p>
+                <p className="mt-2 text-4xl font-black text-[#2f6f3e]">
+                  {counts.posterConfirmedCompletions}
+                </p>
+              </a>
+
+              <a
+                href="/admin/verification"
+                className="rounded-3xl bg-white p-5 shadow-sm"
+              >
+                <p className="text-sm font-semibold text-[#42513c]">
+                  Verification reviews
+                </p>
+                <p className="mt-2 text-4xl font-black text-[#2f6f3e]">
+                  {counts.submittedVerifications}
+                </p>
+              </a>
+
+              <a
+                href="/admin/payouts"
+                className="rounded-3xl bg-white p-5 shadow-sm"
+              >
+                <p className="text-sm font-semibold text-[#42513c]">
+                  Payouts ready
+                </p>
+                <p className="mt-2 text-4xl font-black text-[#2f6f3e]">
+                  {counts.payoutsReady}
+                </p>
+              </a>
+            </section>
+
             <section className="mb-8 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
               {adminCards.map((card) => (
                 <a
@@ -235,7 +343,7 @@ export default function AdminPage() {
               ))}
             </section>
 
-            <section className="rounded-3xl bg-white p-6 shadow-sm">
+            <section id="poster-requests" className="rounded-3xl bg-white p-6 shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h2 className="text-2xl font-bold">Poster access requests</h2>
