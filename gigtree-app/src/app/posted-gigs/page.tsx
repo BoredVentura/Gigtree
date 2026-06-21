@@ -207,6 +207,12 @@ export default function PostedGigsPage() {
 
                 <div className="flex shrink-0 flex-row gap-2 md:flex-col md:justify-center">
                   <a
+                    href={`/posted-gigs/${gig.id}/recommendations`}
+                    className="rounded-full bg-[#2f6f3e] px-5 py-3 text-center font-semibold text-white"
+                  >
+                    View recommendations
+                  </a>
+                  <a
                     href={`/gigs/${gig.id}`}
                     className="rounded-full border border-black/10 px-5 py-3 text-center font-semibold"
                   >
