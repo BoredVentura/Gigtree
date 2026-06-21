@@ -1,17 +1,50 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
+
 type SiteHeaderProps = {
   active?: string;
 };
 
-const links = [
+const userLinks = [
   { label: "Dashboard", href: "/dashboard", key: "dashboard" },
   { label: "Gigs", href: "/gigs", key: "gigs" },
   { label: "Applications", href: "/applications", key: "applications" },
   { label: "Post", href: "/post-gig", key: "post" },
   { label: "Status", href: "/status", key: "status" },
-  { label: "Admin", href: "/admin", key: "admin" },
 ];
 
 export function SiteHeader({ active }: SiteHeaderProps) {
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    async function loadAdminStatus() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        setIsAdmin(false);
+        return;
+      }
+
+      const { data } = await supabase
+        .from("profiles")
+        .select("is_admin")
+        .eq("id", user.id)
+        .single();
+
+      setIsAdmin(Boolean(data?.is_admin));
+    }
+
+    loadAdminStatus();
+  }, []);
+
+  const links = isAdmin
+    ? [...userLinks, { label: "Admin", href: "/admin", key: "admin" }]
+    : userLinks;
+
   return (
     <nav className="flex flex-wrap items-center justify-between gap-4">
       <a href="/" className="flex items-center gap-3">

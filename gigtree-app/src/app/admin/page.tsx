@@ -1,4 +1,5 @@
 "use client";
+import { SiteHeader } from "@/components/site-header";
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
@@ -200,6 +201,45 @@ export default function AdminPage() {
   const mediumPriorityCount = adminCards.filter(
     (card) => card.priority === "medium" && card.count > 0
   ).length;
+
+  if (message === "You do not have admin access.") {
+    return (
+      <main className="min-h-screen bg-[#fbfff6] text-[#142014]">
+        <section className="mx-auto max-w-7xl px-6 py-8">
+          <SiteHeader active="dashboard" />
+
+          <div className="py-16">
+            <div className="max-w-3xl rounded-[2rem] bg-white p-8 shadow-sm ring-1 ring-black/10">
+              <p className="font-semibold text-[#2f6f3e]">Admin access required</p>
+              <h1 className="mt-3 text-5xl font-black leading-tight tracking-tight">
+                This area is only for Gigtree admins.
+              </h1>
+              <p className="mt-5 text-lg leading-8 text-[#42513c]">
+                You are signed in, but this account does not have admin access.
+                Admin tools, queues, audit logs, and payout controls are hidden
+                from non-admin users.
+              </p>
+
+              <div className="mt-6 flex flex-wrap gap-3">
+                <a
+                  href="/dashboard"
+                  className="rounded-full bg-[#2f6f3e] px-6 py-4 font-bold text-white shadow-xl shadow-[#2f6f3e]/20"
+                >
+                  Back to dashboard
+                </a>
+                <a
+                  href="/gigs"
+                  className="rounded-full bg-white px-6 py-4 font-bold shadow-sm ring-1 ring-black/10 hover:bg-[#f6f8f4]"
+                >
+                  Browse gigs
+                </a>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-[#fbfff6] text-[#142014]">
