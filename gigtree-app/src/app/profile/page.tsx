@@ -30,6 +30,7 @@ export default function ProfilePage() {
   const [cvFileUrl, setCvFileUrl] = useState("");
   const [message, setMessage] = useState("Loading profile...");
   const [loading, setLoading] = useState(false);
+  const [uploadingCv, setUploadingCv] = useState(false);
 
   useEffect(() => {
     async function loadProfile() {
@@ -73,6 +74,35 @@ export default function ProfilePage() {
 
     loadProfile();
   }, []);
+
+  async function uploadCv(file: File) {
+    if (!userId) {
+      setMessage("Please sign in before uploading a CV.");
+      return;
+    }
+
+    setUploadingCv(true);
+    setMessage("");
+
+    const safeFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
+    const filePath = `${userId}/${Date.now()}-${safeFileName}`;
+
+    const { error } = await supabase.storage
+      .from("cvs")
+      .upload(filePath, file, {
+        cacheControl: "3600",
+        upsert: true,
+      });
+
+    if (error) {
+      setMessage(error.message);
+    } else {
+      setCvFileUrl(filePath);
+      setMessage("CV uploaded. Remember to save your profile.");
+    }
+
+    setUploadingCv(false);
+  }
 
   async function saveProfile() {
     if (!userId) {
@@ -245,17 +275,28 @@ export default function ProfilePage() {
             </p>
           </div>
 
-          <div>
-            <label className="text-sm font-semibold">CV file URL</label>
+          <div className="rounded-2xl bg-[#f6f8f4] p-4">
+            <label className="text-sm font-semibold">CV upload</label>
             <input
-              value={cvFileUrl}
-              onChange={(event) => setCvFileUrl(event.target.value)}
-              className="mt-2 w-full rounded-2xl border border-black/10 px-4 py-3 outline-none"
-              placeholder="Temporary: paste a CV link here"
+              type="file"
+              accept=".pdf,.doc,.docx"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) uploadCv(file);
+              }}
+              className="mt-3 block w-full text-sm"
             />
             <p className="mt-2 text-sm text-[#42513c]">
-              We will replace this with real CV upload soon.
+              Accepted formats: PDF, DOC, DOCX.
             </p>
+            {cvFileUrl && (
+              <p className="mt-3 text-sm font-medium text-[#2f6f3e]">
+                CV uploaded: {cvFileUrl}
+              </p>
+            )}
+            {uploadingCv && (
+              <p className="mt-3 text-sm text-[#42513c]">Uploading CV...</p>
+            )}
           </div>
 
           <button

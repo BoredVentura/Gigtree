@@ -31,7 +31,7 @@ export default function Home() {
           <div className="flex items-center gap-3 text-sm">
             <a href="/gigs" className="hidden sm:inline hover:underline">Browse gigs</a>
             <a href="#how" className="hidden sm:inline hover:underline">How it works</a>
-            <button className="rounded-full border border-[#172014]/20 px-4 py-2">Sign in</button>
+            <a href="/login" className="rounded-full border border-[#172014]/20 px-4 py-2">Sign in</a>
           </div>
         </nav>
 
