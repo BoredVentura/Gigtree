@@ -53,11 +53,62 @@ function formatStatus(status: string) {
     .join(" ");
 }
 
-function StatusPill({ label }: { label: string }) {
+function applicationStep(status: string) {
+  if (status === "submitted") return "Application submitted";
+  if (status === "under_review") return "Admin reviewing";
+  if (status === "recommended") return "Recommended to poster";
+  if (status === "selected_by_poster") return "Selected by poster";
+  if (status === "accepted_by_worker") return "Worker accepted";
+  if (status === "declined_by_worker") return "Worker declined";
+  if (status === "not_recommended") return "Not recommended";
+  return formatStatus(status);
+}
+
+function paymentStep(status: string) {
+  if (status === "held") return "Payment held";
+  if (status === "pending_admin_confirmation") return "Waiting admin completion review";
+  if (status === "pending_worker_verification") return "Waiting worker verification";
+  if (status === "ready_for_release") return "Ready for release";
+  if (status === "released") return "Released";
+  return formatStatus(status);
+}
+
+function TimelineItem({
+  title,
+  subtitle,
+  status,
+  href,
+  action,
+}: {
+  title: string;
+  subtitle: string;
+  status: string;
+  href: string;
+  action: string;
+}) {
   return (
-    <span className="rounded-full bg-[#e8f0e4] px-3 py-1 text-sm font-semibold text-[#2f6f3e]">
-      {label}
-    </span>
+    <article className="rounded-3xl border border-black/10 bg-white p-6 shadow-sm">
+      <div className="flex flex-col justify-between gap-5 md:flex-row">
+        <div>
+          <div className="mb-3 flex flex-wrap gap-2 text-sm">
+            <span className="rounded-full bg-[#e8f0e4] px-3 py-1 font-semibold text-[#2f6f3e]">
+              {status}
+            </span>
+          </div>
+          <h3 className="text-2xl font-bold">{title}</h3>
+          <p className="mt-3 text-[#42513c]">{subtitle}</p>
+        </div>
+
+        <div className="flex shrink-0 flex-col justify-center">
+          <a
+            href={href}
+            className="rounded-full bg-[#2f6f3e] px-5 py-3 text-center font-semibold text-white"
+          >
+            {action}
+          </a>
+        </div>
+      </div>
+    </article>
   );
 }
 
@@ -168,18 +219,27 @@ export default function StatusPage() {
     loadStatus();
   }, []);
 
+  const totalItems =
+    postedGigs.length + applications.length + payments.length + completions.length;
+
   return (
     <main className="min-h-screen bg-[#f6f8f4] text-[#172014]">
       <section className="mx-auto max-w-6xl px-6 py-8">
-        <nav className="flex items-center justify-between">
+        <nav className="flex flex-wrap items-center justify-between gap-4">
           <a href="/" className="text-2xl font-bold tracking-tight">
             Gigtree
           </a>
-          <div className="flex items-center gap-3 text-sm">
-            <a href="/dashboard" className="hidden sm:inline hover:underline">
+          <div className="flex flex-wrap items-center gap-3 text-sm">
+            <a href="/dashboard" className="hover:underline">
               Dashboard
             </a>
-            <a href="/payments" className="hidden sm:inline hover:underline">
+            <a href="/applications" className="hover:underline">
+              Applications
+            </a>
+            <a href="/posted-gigs" className="hover:underline">
+              Posted gigs
+            </a>
+            <a href="/payments" className="hover:underline">
               Payments
             </a>
           </div>
@@ -188,11 +248,11 @@ export default function StatusPage() {
         <div className="py-12">
           <p className="font-semibold text-[#2f6f3e]">Status overview</p>
           <h1 className="mt-3 max-w-3xl text-4xl font-black tracking-tight sm:text-5xl">
-            See where everything stands.
+            Your Gigtree timeline.
           </h1>
           <p className="mt-5 max-w-2xl text-lg leading-8 text-[#42513c]">
-            Track your posted gigs, applications, completion confirmations, and
-            payment statuses from one place.
+            See posted gigs, applications, completions, and payments in one
+            simple timeline.
           </p>
         </div>
 
@@ -210,149 +270,157 @@ export default function StatusPage() {
           </div>
         )}
 
-        {!message && (
-          <div className="grid gap-6">
-            <section className="rounded-3xl bg-white p-6 shadow-sm">
-              <div className="flex items-center justify-between gap-4">
-                <h2 className="text-2xl font-bold">Posted gigs</h2>
-                <a href="/posted-gigs" className="text-sm font-semibold text-[#2f6f3e]">
-                  View posted gigs
-                </a>
-              </div>
+        {!message && totalItems === 0 && (
+          <div className="rounded-3xl bg-white p-6 shadow-sm">
+            <h2 className="text-2xl font-bold">No activity yet</h2>
+            <p className="mt-3 text-[#42513c]">
+              Your timeline will show applications, posted gigs, completion
+              confirmations, and payments once you start using Gigtree.
+            </p>
+            <div className="mt-5 flex flex-wrap gap-3">
+              <a
+                href="/gigs"
+                className="rounded-full bg-[#2f6f3e] px-5 py-3 font-semibold text-white"
+              >
+                Browse gigs
+              </a>
+              <a
+                href="/post-gig"
+                className="rounded-full border border-black/10 px-5 py-3 font-semibold hover:bg-[#f6f8f4]"
+              >
+                Post a gig
+              </a>
+            </div>
+          </div>
+        )}
 
-              {postedGigs.length === 0 ? (
-                <p className="mt-4 text-[#42513c]">No posted gigs yet.</p>
-              ) : (
-                <div className="mt-5 grid gap-3">
-                  {postedGigs.map((gig) => (
-                    <div
-                      key={gig.id}
-                      className="rounded-2xl border border-black/10 p-4"
-                    >
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                          <h3 className="font-bold">{gig.title}</h3>
-                          <p className="text-sm text-[#42513c]">{gig.category}</p>
-                        </div>
-                        <StatusPill label={formatStatus(gig.status)} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-
-            <section className="rounded-3xl bg-white p-6 shadow-sm">
-              <div className="flex items-center justify-between gap-4">
-                <h2 className="text-2xl font-bold">Applications</h2>
-                <a href="/applications" className="text-sm font-semibold text-[#2f6f3e]">
+        {!message && totalItems > 0 && (
+          <div className="grid gap-8">
+            <section>
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-3xl font-black">Worker timeline</h2>
+                <a href="/applications" className="font-semibold text-[#2f6f3e] hover:underline">
                   View applications
                 </a>
               </div>
 
               {applications.length === 0 ? (
-                <p className="mt-4 text-[#42513c]">No applications yet.</p>
+                <div className="rounded-3xl bg-white p-6 text-[#42513c] shadow-sm">
+                  You have not applied for any gigs yet.
+                </div>
               ) : (
-                <div className="mt-5 grid gap-3">
+                <div className="grid gap-4">
                   {applications.map((application) => (
-                    <div
+                    <TimelineItem
                       key={application.id}
-                      className="rounded-2xl border border-black/10 p-4"
-                    >
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                          <h3 className="font-bold">
-                            {application.gigs?.title ?? "Unknown gig"}
-                          </h3>
-                          <p className="text-sm text-[#42513c]">
-                            {application.gigs?.category ?? "Gig"}
-                          </p>
-                        </div>
-                        <StatusPill label={formatStatus(application.status)} />
-                      </div>
-                    </div>
+                      title={application.gigs?.title ?? "Unknown gig"}
+                      subtitle={`Worker application · ${application.gigs?.category ?? "Gig"} · Applied ${new Date(application.created_at).toLocaleDateString()}`}
+                      status={applicationStep(application.status)}
+                      href={
+                        application.status === "selected_by_poster"
+                          ? "/confirmations"
+                          : application.status === "accepted_by_worker"
+                            ? "/contacts"
+                            : `/gigs/${application.gig_id}`
+                      }
+                      action={
+                        application.status === "selected_by_poster"
+                          ? "Confirm selection"
+                          : application.status === "accepted_by_worker"
+                            ? "View contacts"
+                            : "View gig"
+                      }
+                    />
                   ))}
                 </div>
               )}
             </section>
 
-            <section className="rounded-3xl bg-white p-6 shadow-sm">
-              <div className="flex items-center justify-between gap-4">
-                <h2 className="text-2xl font-bold">Completion</h2>
-                <a href="/completions" className="text-sm font-semibold text-[#2f6f3e]">
+            <section>
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-3xl font-black">Poster timeline</h2>
+                <a href="/posted-gigs" className="font-semibold text-[#2f6f3e] hover:underline">
+                  View posted gigs
+                </a>
+              </div>
+
+              {postedGigs.length === 0 ? (
+                <div className="rounded-3xl bg-white p-6 text-[#42513c] shadow-sm">
+                  You have not posted any gigs yet.
+                </div>
+              ) : (
+                <div className="grid gap-4">
+                  {postedGigs.map((gig) => (
+                    <TimelineItem
+                      key={gig.id}
+                      title={gig.title}
+                      subtitle={`Posted gig · ${gig.category} · Posted ${new Date(gig.created_at).toLocaleDateString()}`}
+                      status={`Gig ${formatStatus(gig.status)}`}
+                      href={`/posted-gigs/${gig.id}/recommendations`}
+                      action="View recommendations"
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section>
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-3xl font-black">Completion timeline</h2>
+                <a href="/completions" className="font-semibold text-[#2f6f3e] hover:underline">
                   View completions
                 </a>
               </div>
 
               {completions.length === 0 ? (
-                <p className="mt-4 text-[#42513c]">
+                <div className="rounded-3xl bg-white p-6 text-[#42513c] shadow-sm">
                   No completion confirmations yet.
-                </p>
+                </div>
               ) : (
-                <div className="mt-5 grid gap-3">
+                <div className="grid gap-4">
                   {completions.map((completion) => (
-                    <div
+                    <TimelineItem
                       key={completion.id}
-                      className="rounded-2xl border border-black/10 p-4"
-                    >
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                          <h3 className="font-bold">
-                            {completion.gigs?.title ?? "Unknown gig"}
-                          </h3>
-                          <p className="text-sm text-[#42513c]">
-                            Poster:{" "}
-                            {completion.poster_confirmed ? "confirmed" : "waiting"} ·
-                            Admin:{" "}
-                            {completion.admin_confirmed ? "confirmed" : "waiting"}
-                          </p>
-                        </div>
-                        <StatusPill
-                          label={
-                            completion.admin_confirmed
-                              ? "Admin Confirmed"
-                              : completion.poster_confirmed
-                                ? "Waiting Admin"
-                                : "Waiting Poster"
-                          }
-                        />
-                      </div>
-                    </div>
+                      title={completion.gigs?.title ?? "Unknown gig"}
+                      subtitle={`Completion · ${completion.gigs?.category ?? "Gig"}`}
+                      status={
+                        completion.admin_confirmed
+                          ? "Admin confirmed"
+                          : completion.poster_confirmed
+                            ? "Waiting admin review"
+                            : "Waiting poster confirmation"
+                      }
+                      href="/completions"
+                      action="View completion"
+                    />
                   ))}
                 </div>
               )}
             </section>
 
-            <section className="rounded-3xl bg-white p-6 shadow-sm">
-              <div className="flex items-center justify-between gap-4">
-                <h2 className="text-2xl font-bold">Payments</h2>
-                <a href="/payments" className="text-sm font-semibold text-[#2f6f3e]">
+            <section>
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-3xl font-black">Payment timeline</h2>
+                <a href="/payments" className="font-semibold text-[#2f6f3e] hover:underline">
                   View payments
                 </a>
               </div>
 
               {payments.length === 0 ? (
-                <p className="mt-4 text-[#42513c]">No payments yet.</p>
+                <div className="rounded-3xl bg-white p-6 text-[#42513c] shadow-sm">
+                  No payments yet.
+                </div>
               ) : (
-                <div className="mt-5 grid gap-3">
+                <div className="grid gap-4">
                   {payments.map((payment) => (
-                    <div
+                    <TimelineItem
                       key={payment.id}
-                      className="rounded-2xl border border-black/10 p-4"
-                    >
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                          <h3 className="font-bold">
-                            {payment.gigs?.title ?? "Unknown gig"}
-                          </h3>
-                          <p className="text-sm text-[#42513c]">
-                            Held £{payment.amount_gbp} · Worker payout £
-                            {payment.worker_payout_amount_gbp}
-                          </p>
-                        </div>
-                        <StatusPill label={formatStatus(payment.status)} />
-                      </div>
-                    </div>
+                      title={payment.gigs?.title ?? "Unknown gig"}
+                      subtitle={`Held £${payment.amount_gbp} · Worker payout £${payment.worker_payout_amount_gbp}`}
+                      status={paymentStep(payment.status)}
+                      href="/payments"
+                      action="View payment"
+                    />
                   ))}
                 </div>
               )}
