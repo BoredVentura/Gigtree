@@ -3,16 +3,16 @@ import { supabase } from "@/lib/supabase";
 type Gig = {
   id: string;
   title: string;
-  description: string;
+  description: string | null;
   category: string;
-  trust_level: "low" | "medium" | "high";
-  location_type: "online" | "in_person";
+  location_type: "remote" | "in_person" | "hybrid";
   location_area: string | null;
   pay_type: "hourly" | "fixed";
   hourly_rate: number | null;
   fixed_amount: number | null;
-  currency: string;
   schedule_summary: string | null;
+  status: string;
+  created_at: string;
 };
 
 function formatPay(gig: Gig) {
@@ -27,143 +27,147 @@ function formatPay(gig: Gig) {
   return "Pay TBC";
 }
 
-function formatLocationType(type: Gig["location_type"]) {
-  return type === "in_person" ? "In-person" : "Online";
+function formatLocation(gig: Gig) {
+  if (gig.location_type === "remote") return "Remote";
+  if (gig.location_type === "hybrid") {
+    return `Hybrid${gig.location_area ? ` · ${gig.location_area}` : ""}`;
+  }
+  return gig.location_area ?? "In person";
 }
 
-function formatTrustLevel(level: Gig["trust_level"]) {
-  if (level === "high") return "Verification required before applying";
-  if (level === "medium") return "Extra checks may be required";
-  return "Open to apply";
+function trimDescription(description: string | null) {
+  if (!description) return "No description provided yet.";
+
+  if (description.length <= 170) return description;
+
+  return `${description.slice(0, 170)}...`;
 }
 
 export default async function GigsPage() {
-  const { data: gigs, error } = await supabase
+  const { data, error } = await supabase
     .from("gigs")
     .select(
-      "id,title,description,category,trust_level,location_type,location_area,pay_type,hourly_rate,fixed_amount,currency,schedule_summary"
+      "id,title,description,category,location_type,location_area,pay_type,hourly_rate,fixed_amount,schedule_summary,status,created_at"
     )
     .eq("status", "open")
     .order("created_at", { ascending: false });
 
-  if (error) {
-    return (
-      <main className="min-h-screen bg-[#f6f8f4] px-6 py-10 text-[#172014]">
-        <div className="mx-auto max-w-3xl rounded-3xl bg-white p-8 shadow-sm">
-          <h1 className="text-3xl font-bold">Could not load gigs</h1>
-          <p className="mt-3 text-[#42513c]">{error.message}</p>
-        </div>
-      </main>
-    );
-  }
+  const gigs = (data ?? []) as Gig[];
 
   return (
     <main className="min-h-screen bg-[#f6f8f4] text-[#172014]">
       <section className="mx-auto max-w-6xl px-6 py-8">
-        <nav className="flex items-center justify-between">
+        <nav className="flex flex-wrap items-center justify-between gap-4">
           <a href="/" className="text-2xl font-bold tracking-tight">
             Gigtree
           </a>
-          <div className="flex items-center gap-3 text-sm">
-            <a href="/" className="hidden sm:inline hover:underline">
-              Home
-            </a>
-            <a href="/dashboard" className="hidden sm:inline hover:underline">
+          <div className="flex flex-wrap items-center gap-3 text-sm">
+            <a href="/dashboard" className="hover:underline">
               Dashboard
             </a>
-            <button className="rounded-full border border-[#172014]/20 px-4 py-2">
-              Sign in
-            </button>
+            <a href="/applications" className="hover:underline">
+              My applications
+            </a>
+            <a href="/profile" className="hover:underline">
+              Worker profile
+            </a>
           </div>
         </nav>
 
         <div className="py-12">
           <p className="font-semibold text-[#2f6f3e]">Browse gigs</p>
           <h1 className="mt-3 max-w-3xl text-4xl font-black tracking-tight sm:text-5xl">
-            Find local and online opportunities across the UK.
+            Find local and remote gigs.
           </h1>
           <p className="mt-5 max-w-2xl text-lg leading-8 text-[#42513c]">
-            These gigs are now loading from your Supabase database.
+            Apply privately. Gigtree reviews applications before posters see
+            anonymous candidate summaries.
           </p>
         </div>
 
-        <div className="mb-8 grid gap-3 rounded-3xl bg-white p-4 shadow-sm md:grid-cols-4">
-          <input
-            placeholder="Search gigs"
-            className="rounded-2xl border border-black/10 px-4 py-3 outline-none"
-          />
-          <select className="rounded-2xl border border-black/10 px-4 py-3 outline-none">
-            <option>All categories</option>
-            <option>Events</option>
-            <option>Admin</option>
-            <option>Retail</option>
-            <option>Creative</option>
-          </select>
-          <select className="rounded-2xl border border-black/10 px-4 py-3 outline-none">
-            <option>Online or in-person</option>
-            <option>Online</option>
-            <option>In-person</option>
-          </select>
-          <button className="rounded-2xl bg-[#2f6f3e] px-4 py-3 font-semibold text-white">
-            Search
-          </button>
-        </div>
+        {error && (
+          <div className="mb-6 rounded-3xl bg-white p-6 text-[#42513c] shadow-sm">
+            {error.message}
+          </div>
+        )}
+
+        {!error && gigs.length === 0 && (
+          <div className="rounded-3xl bg-white p-6 shadow-sm">
+            <h2 className="text-2xl font-bold">No open gigs yet</h2>
+            <p className="mt-3 text-[#42513c]">
+              Open gigs will appear here once approved posters publish them.
+            </p>
+            <a
+              href="/dashboard"
+              className="mt-5 inline-block rounded-full bg-[#2f6f3e] px-5 py-3 font-semibold text-white"
+            >
+              Go to dashboard
+            </a>
+          </div>
+        )}
 
         <div className="grid gap-5">
-          {(gigs ?? []).map((gig) => (
+          {gigs.map((gig) => (
             <article
               key={gig.id}
-              className="rounded-3xl border border-black/10 bg-white p-5 shadow-sm"
+              className="rounded-3xl border border-black/10 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-md"
             >
-              <div className="flex flex-col justify-between gap-4 md:flex-row">
+              <div className="flex flex-col justify-between gap-5 md:flex-row">
                 <div>
                   <div className="mb-3 flex flex-wrap gap-2 text-sm">
-                    <span className="rounded-full bg-[#e8f0e4] px-3 py-1 font-medium text-[#2f6f3e]">
+                    <span className="rounded-full bg-[#e8f0e4] px-3 py-1 font-semibold text-[#2f6f3e]">
                       {gig.category}
                     </span>
-                    <span className="rounded-full bg-[#f6f8f4] px-3 py-1 font-medium">
-                      {formatLocationType(gig.location_type)}
+                    <span className="rounded-full bg-[#f6f8f4] px-3 py-1 font-semibold">
+                      Apply privately
+                    </span>
+                    <span className="rounded-full bg-[#f6f8f4] px-3 py-1 font-semibold">
+                      Posted {new Date(gig.created_at).toLocaleDateString()}
                     </span>
                   </div>
 
                   <h2 className="text-2xl font-bold">{gig.title}</h2>
-                  <p className="mt-2 text-[#42513c]">{gig.description}</p>
 
-                  <div className="mt-4 grid gap-2 text-sm text-[#42513c] sm:grid-cols-3">
-                    <p>
-                      <span className="font-semibold text-[#172014]">
-                        Location:
-                      </span>{" "}
-                      {gig.location_area ?? "Remote UK"}
-                    </p>
-                    <p>
-                      <span className="font-semibold text-[#172014]">
-                        Pay:
-                      </span>{" "}
+                  <p className="mt-3 max-w-3xl leading-7 text-[#42513c]">
+                    {trimDescription(gig.description)}
+                  </p>
+
+                  <div className="mt-5 grid gap-3 text-sm text-[#42513c] sm:grid-cols-3">
+                    <p className="rounded-2xl bg-[#f6f8f4] p-4">
+                      <span className="block font-semibold text-[#172014]">
+                        Pay
+                      </span>
                       {formatPay(gig)}
                     </p>
-                    <p>
-                      <span className="font-semibold text-[#172014]">
-                        Timing:
-                      </span>{" "}
+
+                    <p className="rounded-2xl bg-[#f6f8f4] p-4">
+                      <span className="block font-semibold text-[#172014]">
+                        Location
+                      </span>
+                      {formatLocation(gig)}
+                    </p>
+
+                    <p className="rounded-2xl bg-[#f6f8f4] p-4">
+                      <span className="block font-semibold text-[#172014]">
+                        Timing
+                      </span>
                       {gig.schedule_summary ?? "Flexible"}
                     </p>
                   </div>
-
-                  <p className="mt-4 text-sm font-medium text-[#2f6f3e]">
-                    {formatTrustLevel(gig.trust_level)}
-                  </p>
                 </div>
 
-                <div className="flex shrink-0 flex-row gap-2 md:flex-col md:justify-center">
-                  <button className="rounded-full border border-black/10 px-5 py-3 font-semibold">
-                    Save
-                  </button>
+                <div className="flex shrink-0 flex-col gap-2 md:justify-center">
                   <a
                     href={`/gigs/${gig.id}`}
                     className="rounded-full bg-[#2f6f3e] px-5 py-3 text-center font-semibold text-white"
                   >
-                    View & apply
+                    View and apply
+                  </a>
+                  <a
+                    href="/profile"
+                    className="rounded-full border border-black/10 px-5 py-3 text-center font-semibold hover:bg-[#f6f8f4]"
+                  >
+                    Improve profile
                   </a>
                 </div>
               </div>
