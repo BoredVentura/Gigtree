@@ -1,4 +1,5 @@
 "use client";
+import { SiteHeader } from "@/components/site-header";
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
@@ -48,24 +49,7 @@ export default function DashboardPage() {
   return (
     <main className="min-h-screen bg-[#fbfff6] text-[#142014]">
       <section className="mx-auto max-w-7xl px-6 py-8">
-        <nav className="flex flex-wrap items-center justify-between gap-4">
-          <a href="/" className="flex items-center gap-3">
-            <span className="grid h-11 w-11 place-items-center rounded-2xl bg-[#2f6f3e] text-xl text-white shadow-lg shadow-[#2f6f3e]/20">
-              ✦
-            </span>
-            <span className="text-2xl font-black tracking-tight">Gigtree</span>
-          </a>
-
-          <div className="flex flex-wrap items-center gap-3 text-sm font-semibold">
-            <a href="/gigs" className="rounded-full px-4 py-2 hover:bg-white">
-              Browse gigs
-            </a>
-            <a href="/status" className="rounded-full px-4 py-2 hover:bg-white">
-              Status
-            </a>
-            <SignOutButton />
-          </div>
-        </nav>
+          <SiteHeader active="dashboard" />
 
         <div className="grid gap-8 py-12 lg:grid-cols-[1fr_360px]">
           <div>
