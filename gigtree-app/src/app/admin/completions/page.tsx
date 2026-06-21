@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { createAuditLog } from "@/lib/audit-log";
 
 type Completion = {
   id: string;
@@ -151,6 +152,13 @@ export default function AdminCompletionsPage() {
         return;
       }
     }
+
+    await createAuditLog({
+      action: "completion_admin_confirmed",
+      entityType: "completion_confirmation",
+      entityId: completion.id,
+      notes: note || "Admin confirmed gig completion.",
+    });
 
     await loadData();
     setMessage(

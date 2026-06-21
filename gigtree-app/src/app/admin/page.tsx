@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { createAuditLog } from "@/lib/audit-log";
 
 type Profile = {
   full_name: string | null;
@@ -212,6 +213,13 @@ export default function AdminPage() {
         return;
       }
     }
+
+    await createAuditLog({
+      action: status === "approved" ? "poster_access_approved" : "poster_access_rejected",
+      entityType: "poster_access_request",
+      entityId: request.id,
+      notes: `Poster access request ${status}.`,
+    });
 
     await loadAdmin();
     setLoadingId("");

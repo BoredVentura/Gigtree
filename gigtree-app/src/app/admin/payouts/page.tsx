@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { createAuditLog } from "@/lib/audit-log";
 
 type Payment = {
   id: string;
@@ -110,6 +111,13 @@ export default function AdminPayoutsPage() {
       setLoadingId("");
       return;
     }
+
+    await createAuditLog({
+      action: "payout_released",
+      entityType: "payment",
+      entityId: payment.id,
+      notes: `Released payout of £${payment.worker_payout_amount_gbp}.`,
+    });
 
     await loadPayments();
     setMessage("Payout released.");

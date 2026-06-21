@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { createAuditLog } from "@/lib/audit-log";
 
 type VerificationRecord = {
   id: string;
@@ -139,6 +140,18 @@ export default function AdminVerificationPage() {
         return;
       }
     }
+
+    await createAuditLog({
+      action:
+        status === "approved"
+          ? "verification_approved"
+          : status === "rejected"
+            ? "verification_rejected"
+            : "verification_needs_more_info",
+      entityType: "verification_record",
+      entityId: record.id,
+      notes: `Worker verification marked as ${formatStatus(status)}.`,
+    });
 
     await loadData();
 
