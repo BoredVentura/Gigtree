@@ -115,6 +115,18 @@ export default function AdminPage() {
             Gigtree
           </a>
           <div className="flex items-center gap-3 text-sm">
+            <a
+              href="/admin/applications"
+              className="hidden sm:inline hover:underline"
+            >
+              Applications
+            </a>
+            <a
+              href="/admin/recommendations"
+              className="hidden sm:inline hover:underline"
+            >
+              Recommendations
+            </a>
             <a href="/dashboard" className="hidden sm:inline hover:underline">
               Dashboard
             </a>
