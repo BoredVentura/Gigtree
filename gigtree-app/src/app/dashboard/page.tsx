@@ -58,8 +58,8 @@ const dashboardCards = [
   {
     title: "Payments",
     description: "View held payments, pending verification, and payout status.",
-    href: "#",
-    action: "Coming soon",
+    href: "/payments",
+    action: "View payments",
   },
 ];
 
