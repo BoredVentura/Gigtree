@@ -1,16 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
-type PostedGig = {
+type Gig = {
   id: string;
   title: string;
   category: string;
+  description: string;
   location_area: string | null;
-  pay_type: "hourly" | "fixed";
-  hourly_rate: number | null;
+  pay_type: string;
   fixed_amount: number | null;
+  hourly_rate: number | null;
   schedule_summary: string | null;
   status: string;
   created_at: string;
@@ -19,12 +20,17 @@ type PostedGig = {
 type Recommendation = {
   id: string;
   gig_id: string;
+  application_id: string;
+  anonymous_label: string;
+  summary: string;
   status: string;
 };
 
 type Contact = {
   id: string;
   gig_id: string;
+  worker_id: string;
+  expires_at: string | null;
 };
 
 type Completion = {
@@ -34,18 +40,6 @@ type Completion = {
   admin_confirmed: boolean;
 };
 
-function formatPay(gig: PostedGig) {
-  if (gig.pay_type === "hourly" && gig.hourly_rate) {
-    return `£${gig.hourly_rate}/hr`;
-  }
-
-  if (gig.pay_type === "fixed" && gig.fixed_amount) {
-    return `£${gig.fixed_amount} fixed`;
-  }
-
-  return "Pay TBC";
-}
-
 function formatStatus(status: string) {
   return status
     .split("_")
@@ -53,209 +47,272 @@ function formatStatus(status: string) {
     .join(" ");
 }
 
-function stageForGig({
-  gig,
-  recommendations,
-  contacts,
-  completions,
-}: {
-  gig: PostedGig;
-  recommendations: Recommendation[];
-  contacts: Contact[];
-  completions: Completion[];
-}) {
-  const gigRecommendations = recommendations.filter((item) => item.gig_id === gig.id);
-  const selectedRecommendation = gigRecommendations.find(
-    (item) => item.status === "selected"
-  );
-  const hasContact = contacts.some((item) => item.gig_id === gig.id);
-  const completion = completions.find((item) => item.gig_id === gig.id);
+function formatPay(gig: Gig) {
+  if (gig.pay_type === "hourly") {
+    return `£${gig.hourly_rate ?? 0}/hour`;
+  }
 
+  return `£${gig.fixed_amount ?? 0} fixed`;
+}
+
+function stageInfo({
+  gig,
+  recommendationCount,
+  hasContact,
+  completion,
+}: {
+  gig: Gig;
+  recommendationCount: number;
+  hasContact: boolean;
+  completion?: Completion;
+}) {
   if (completion?.admin_confirmed) {
     return {
-      label: "Admin confirmed completion",
-      description: "This gig has been confirmed complete by poster and admin.",
-      nextStep: "Track payment status.",
-      href: "/payments",
-      action: "View payments",
+      label: "Complete",
+      description: "Poster and admin have confirmed this gig as complete.",
+      nextStep: "Check payments if needed.",
+      priority: 5,
     };
   }
 
   if (completion?.poster_confirmed) {
     return {
       label: "Waiting for admin completion review",
-      description: "You confirmed the job is done. Gigtree admin now needs to review it.",
-      nextStep: "Wait for admin review.",
-      href: "/status",
-      action: "View status",
+      description: "You confirmed completion. Admin needs to review next.",
+      nextStep: "No action needed unless admin contacts you.",
+      priority: 4,
     };
   }
 
   if (hasContact) {
     return {
-      label: "Contact available",
-      description:
-        "The worker accepted. Temporary masked contact details are available.",
-      nextStep: "Agree final details, then confirm completion after the work is done.",
-      href: "/contacts",
-      action: "View contacts",
+      label: "Contact opened",
+      description: "Temporary contact details are available for this gig.",
+      nextStep: "Use contact details and confirm completion when the work is done.",
+      priority: 3,
     };
   }
 
-  if (selectedRecommendation) {
+  if (recommendationCount > 0) {
     return {
-      label: "Candidate selected",
-      description:
-        "You selected a candidate. The worker now needs to accept or decline.",
-      nextStep: "Wait for worker confirmation.",
-      href: `/posted-gigs/${gig.id}/recommendations`,
-      action: "View selection",
-    };
-  }
-
-  if (gigRecommendations.length > 0) {
-    return {
-      label: "Recommendations available",
-      description:
-        "Gigtree admin has recommended anonymous candidates for this gig.",
-      nextStep: "Review candidates and select one.",
-      href: `/posted-gigs/${gig.id}/recommendations`,
-      action: "Review candidates",
+      label: "Review candidates",
+      description: "Admin has prepared anonymous candidate summaries.",
+      nextStep: "Review recommendations and choose a candidate.",
+      priority: 2,
     };
   }
 
   return {
-    label: "Applications under review",
-    description:
-      "Your gig is live or waiting for Gigtree admin to review applicants.",
-    nextStep: "Wait for admin recommendations.",
-    href: `/posted-gigs/${gig.id}/recommendations`,
-    action: "Check recommendations",
+    label: "Open for applications",
+    description: "Workers can apply privately. Admin will review applicants.",
+    nextStep: "Wait for applications and admin recommendations.",
+    priority: 1,
   };
 }
 
 export default function PostedGigsPage() {
-  const [gigs, setGigs] = useState<PostedGig[]>([]);
+  const [userId, setUserId] = useState("");
+  const [gigs, setGigs] = useState<Gig[]>([]);
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [completions, setCompletions] = useState<Completion[]>([]);
   const [message, setMessage] = useState("Loading your posted gigs...");
 
-  useEffect(() => {
-    async function loadPostedGigs() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+  async function loadPostedGigs() {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-      if (!user) {
-        setMessage("Please sign in to view posted gigs.");
-        return;
-      }
-
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("can_post_gigs")
-        .eq("id", user.id)
-        .single();
-
-      if (profileError) {
-        setMessage(profileError.message);
-        return;
-      }
-
-      if (!profile?.can_post_gigs) {
-        setMessage("You need poster approval before viewing posted gigs.");
-        return;
-      }
-
-      const { data: gigData, error: gigError } = await supabase
-        .from("gigs")
-        .select(
-          "id,title,category,location_area,pay_type,hourly_rate,fixed_amount,schedule_summary,status,created_at"
-        )
-        .eq("poster_id", user.id)
-        .order("created_at", { ascending: false });
-
-      if (gigError) {
-        setMessage(gigError.message);
-        return;
-      }
-
-      const postedGigs = (gigData ?? []) as PostedGig[];
-      setGigs(postedGigs);
-
-      const gigIds = postedGigs.map((gig) => gig.id);
-
-      if (gigIds.length === 0) {
-        setMessage("");
-        return;
-      }
-
-      const { data: recommendationData } = await supabase
-        .from("admin_recommendations")
-        .select("id,gig_id,status")
-        .in("gig_id", gigIds);
-
-      const { data: contactData } = await supabase
-        .from("masked_contacts")
-        .select("id,gig_id")
-        .in("gig_id", gigIds);
-
-      const { data: completionData } = await supabase
-        .from("completion_confirmations")
-        .select("id,gig_id,poster_confirmed,admin_confirmed")
-        .in("gig_id", gigIds);
-
-      setRecommendations((recommendationData ?? []) as Recommendation[]);
-      setContacts((contactData ?? []) as Contact[]);
-      setCompletions((completionData ?? []) as Completion[]);
-      setMessage("");
+    if (!user) {
+      setMessage("Please sign in to view your posted gigs.");
+      return;
     }
 
+    setUserId(user.id);
+
+    const { data: gigData, error: gigError } = await supabase
+      .from("gigs")
+      .select(
+        "id,title,category,description,location_area,pay_type,fixed_amount,hourly_rate,schedule_summary,status,created_at"
+      )
+      .eq("poster_id", user.id)
+      .order("created_at", { ascending: false });
+
+    if (gigError) {
+      setMessage(gigError.message);
+      return;
+    }
+
+    const loadedGigs = (gigData ?? []) as Gig[];
+    setGigs(loadedGigs);
+
+    const gigIds = loadedGigs.map((gig) => gig.id);
+
+    if (gigIds.length === 0) {
+      setRecommendations([]);
+      setContacts([]);
+      setCompletions([]);
+      setMessage("");
+      return;
+    }
+
+    const [recommendationResult, contactResult, completionResult] =
+      await Promise.all([
+        supabase
+          .from("admin_recommendations")
+          .select("id,gig_id,application_id,anonymous_label,summary,status")
+          .in("gig_id", gigIds),
+        supabase
+          .from("masked_contacts")
+          .select("id,gig_id,worker_id,expires_at")
+          .in("gig_id", gigIds),
+        supabase
+          .from("completion_confirmations")
+          .select("id,gig_id,poster_confirmed,admin_confirmed")
+          .in("gig_id", gigIds),
+      ]);
+
+    if (recommendationResult.error) {
+      setMessage(recommendationResult.error.message);
+      return;
+    }
+
+    if (contactResult.error) {
+      setMessage(contactResult.error.message);
+      return;
+    }
+
+    if (completionResult.error) {
+      setMessage(completionResult.error.message);
+      return;
+    }
+
+    setRecommendations((recommendationResult.data ?? []) as Recommendation[]);
+    setContacts((contactResult.data ?? []) as Contact[]);
+    setCompletions((completionResult.data ?? []) as Completion[]);
+    setMessage("");
+  }
+
+  useEffect(() => {
     loadPostedGigs();
   }, []);
 
+  const recommendationsByGig = useMemo(() => {
+    const map = new Map<string, Recommendation[]>();
+
+    for (const recommendation of recommendations) {
+      const current = map.get(recommendation.gig_id) ?? [];
+      current.push(recommendation);
+      map.set(recommendation.gig_id, current);
+    }
+
+    return map;
+  }, [recommendations]);
+
+  const contactsByGig = useMemo(() => {
+    const map = new Map<string, Contact[]>();
+
+    for (const contact of contacts) {
+      const current = map.get(contact.gig_id) ?? [];
+      current.push(contact);
+      map.set(contact.gig_id, current);
+    }
+
+    return map;
+  }, [contacts]);
+
+  const completionByGig = useMemo(() => {
+    const map = new Map<string, Completion>();
+
+    for (const completion of completions) {
+      map.set(completion.gig_id, completion);
+    }
+
+    return map;
+  }, [completions]);
+
+  const actionGigs = gigs.filter((gig) => {
+    const stage = stageInfo({
+      gig,
+      recommendationCount: recommendationsByGig.get(gig.id)?.length ?? 0,
+      hasContact: (contactsByGig.get(gig.id)?.length ?? 0) > 0,
+      completion: completionByGig.get(gig.id),
+    });
+
+    return stage.priority >= 2 && stage.priority < 5;
+  });
+
   return (
-    <main className="min-h-screen bg-[#f6f8f4] text-[#172014]">
-      <section className="mx-auto max-w-6xl px-6 py-8">
+    <main className="min-h-screen bg-[#fbfff6] text-[#142014]">
+      <section className="mx-auto max-w-7xl px-6 py-8">
         <nav className="flex flex-wrap items-center justify-between gap-4">
-          <a href="/" className="text-2xl font-bold tracking-tight">
-            Gigtree
+          <a href="/" className="flex items-center gap-3">
+            <span className="grid h-11 w-11 place-items-center rounded-2xl bg-[#2f6f3e] text-xl text-white shadow-lg shadow-[#2f6f3e]/20">
+              ✦
+            </span>
+            <span className="text-2xl font-black tracking-tight">Gigtree</span>
           </a>
-          <div className="flex flex-wrap items-center gap-3 text-sm">
-            <a href="/dashboard" className="hover:underline">
+
+          <div className="flex flex-wrap items-center gap-3 text-sm font-semibold">
+            <a href="/dashboard" className="rounded-full px-4 py-2 hover:bg-white">
               Dashboard
             </a>
-            <a href="/post-gig" className="hover:underline">
+            <a href="/post-gig" className="rounded-full px-4 py-2 hover:bg-white">
               Post gig
             </a>
-            <a href="/status" className="hover:underline">
-              Status
-            </a>
-            <a href="/payments" className="hover:underline">
-              Payments
+            <a href="/contacts" className="rounded-full px-4 py-2 hover:bg-white">
+              Contacts
             </a>
           </div>
         </nav>
 
-        <div className="py-12">
-          <p className="font-semibold text-[#2f6f3e]">My posted gigs</p>
-          <h1 className="mt-3 max-w-3xl text-4xl font-black tracking-tight sm:text-5xl">
-            Track gigs you have posted.
-          </h1>
-          <p className="mt-5 max-w-2xl text-lg leading-8 text-[#42513c]">
-            See each gig stage, review admin recommendations, and follow the
-            path from candidate selection to contact, completion, and payment.
-          </p>
+        <div className="grid gap-8 py-12 lg:grid-cols-[1fr_360px]">
+          <div>
+            <p className="font-semibold text-[#2f6f3e]">Posted gigs</p>
+            <h1 className="mt-3 max-w-4xl text-5xl font-black leading-tight tracking-tight">
+              Track your gigs from posting to completion.
+            </h1>
+            <p className="mt-5 max-w-3xl text-lg leading-8 text-[#42513c]">
+              See where each gig is in the Gigtree flow: applications,
+              recommendations, contact, completion, and payment.
+            </p>
+          </div>
+
+          <aside className="h-fit rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-black/10">
+            <h2 className="text-2xl font-black">Quick summary</h2>
+
+            <div className="mt-5 grid gap-3 text-sm text-[#42513c]">
+              <div className="rounded-2xl bg-[#f6f8f4] p-4">
+                <span className="block text-2xl font-black text-[#142014]">
+                  {gigs.length}
+                </span>
+                Total posted gigs
+              </div>
+
+              <div className="rounded-2xl bg-[#f6f8f4] p-4">
+                <span className="block text-2xl font-black text-[#142014]">
+                  {actionGigs.length}
+                </span>
+                Gigs with next actions
+              </div>
+
+              <a
+                href="/post-gig"
+                className="rounded-full bg-[#2f6f3e] px-5 py-3 text-center font-semibold text-white"
+              >
+                Post another gig
+              </a>
+            </div>
+          </aside>
         </div>
 
         {message && (
-          <div className="rounded-3xl bg-white p-6 text-[#42513c] shadow-sm">
+          <div className="mb-6 rounded-3xl bg-white p-5 text-[#42513c] shadow-sm ring-1 ring-black/10">
             {message}
             {message.includes("sign in") && (
               <a
                 href="/login"
-                className="mt-5 inline-block rounded-full bg-[#2f6f3e] px-5 py-3 font-semibold text-white"
+                className="mt-4 inline-block rounded-full bg-[#2f6f3e] px-5 py-3 font-semibold text-white"
               >
                 Sign in
               </a>
@@ -263,105 +320,234 @@ export default function PostedGigsPage() {
           </div>
         )}
 
-        {!message && gigs.length === 0 && (
-          <div className="rounded-3xl bg-white p-6 shadow-sm">
-            <h2 className="text-2xl font-bold">No posted gigs yet</h2>
-            <p className="mt-3 text-[#42513c]">
-              Once you post a gig, it will appear here with recommendations and
-              next steps.
+        {userId && gigs.length === 0 && !message && (
+          <div className="rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-black/10">
+            <h2 className="text-3xl font-black">No posted gigs yet</h2>
+            <p className="mt-3 max-w-2xl leading-7 text-[#42513c]">
+              Once you post a gig, it will appear here with its current stage
+              and next action.
             </p>
+
             <a
               href="/post-gig"
-              className="mt-5 inline-block rounded-full bg-[#2f6f3e] px-5 py-3 font-semibold text-white"
+              className="mt-6 inline-block rounded-full bg-[#2f6f3e] px-6 py-4 font-bold text-white shadow-xl shadow-[#2f6f3e]/20"
             >
-              Post a gig
+              Post your first gig
             </a>
           </div>
         )}
 
-        <div className="grid gap-5">
-          {gigs.map((gig) => {
-            const stage = stageForGig({
-              gig,
-              recommendations,
-              contacts,
-              completions,
-            });
+        {userId && gigs.length > 0 && (
+          <div className="grid gap-8 pb-16">
+            <section>
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-3xl font-black">Needs attention</h2>
+                <span className="rounded-full bg-[#e8f0e4] px-4 py-2 text-sm font-semibold text-[#2f6f3e]">
+                  {actionGigs.length} active
+                </span>
+              </div>
 
-            return (
-              <article
-                key={gig.id}
-                className="rounded-3xl border border-black/10 bg-white p-6 shadow-sm"
-              >
-                <div className="flex flex-col justify-between gap-5 md:flex-row">
-                  <div>
-                    <div className="mb-3 flex flex-wrap gap-2 text-sm">
-                      <span className="rounded-full bg-[#e8f0e4] px-3 py-1 font-semibold text-[#2f6f3e]">
-                        {stage.label}
-                      </span>
-                      <span className="rounded-full bg-[#f6f8f4] px-3 py-1 font-semibold">
-                        {gig.category}
-                      </span>
-                      <span className="rounded-full bg-[#f6f8f4] px-3 py-1 font-semibold">
-                        {formatStatus(gig.status)}
-                      </span>
-                    </div>
-
-                    <h2 className="text-2xl font-bold">{gig.title}</h2>
-
-                    <div className="mt-4 grid gap-3 text-sm text-[#42513c] sm:grid-cols-3">
-                      <p>
-                        <span className="font-semibold text-[#172014]">
-                          Location:
-                        </span>{" "}
-                        {gig.location_area ?? "Remote UK"}
-                      </p>
-                      <p>
-                        <span className="font-semibold text-[#172014]">
-                          Pay:
-                        </span>{" "}
-                        {formatPay(gig)}
-                      </p>
-                      <p>
-                        <span className="font-semibold text-[#172014]">
-                          Timing:
-                        </span>{" "}
-                        {gig.schedule_summary ?? "Flexible"}
-                      </p>
-                    </div>
-
-                    <div className="mt-5 rounded-2xl bg-[#f6f8f4] p-4">
-                      <p className="font-semibold">Current stage</p>
-                      <p className="mt-2 text-[#42513c]">{stage.description}</p>
-                    </div>
-
-                    <div className="mt-3 rounded-2xl bg-[#e8f0e4] p-4">
-                      <p className="font-semibold text-[#2f6f3e]">
-                        Next step
-                      </p>
-                      <p className="mt-2 text-[#42513c]">{stage.nextStep}</p>
-                    </div>
-                  </div>
-
-                  <div className="flex shrink-0 flex-col gap-2 md:justify-center">
-                    <a
-                      href={stage.href}
-                      className="rounded-full bg-[#2f6f3e] px-5 py-3 text-center font-semibold text-white"
-                    >
-                      {stage.action}
-                    </a>
-                    <a
-                      href={`/posted-gigs/${gig.id}/recommendations`}
-                      className="rounded-full border border-black/10 px-5 py-3 text-center font-semibold hover:bg-[#f6f8f4]"
-                    >
-                      Recommendations
-                    </a>
-                  </div>
+              {actionGigs.length === 0 ? (
+                <div className="rounded-[2rem] bg-white p-6 text-[#42513c] shadow-sm ring-1 ring-black/10">
+                  No posted gigs currently need action.
                 </div>
-              </article>
-            );
-          })}
-        </div>
+              ) : (
+                <div className="grid gap-5">
+                  {actionGigs.map((gig) => {
+                    const gigRecommendations =
+                      recommendationsByGig.get(gig.id) ?? [];
+                    const hasContact =
+                      (contactsByGig.get(gig.id)?.length ?? 0) > 0;
+                    const completion = completionByGig.get(gig.id);
+
+                    const stage = stageInfo({
+                      gig,
+                      recommendationCount: gigRecommendations.length,
+                      hasContact,
+                      completion,
+                    });
+
+                    return (
+                      <article
+                        key={gig.id}
+                        className="rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-black/10"
+                      >
+                        <div className="flex flex-col justify-between gap-5 lg:flex-row">
+                          <div>
+                            <div className="mb-3 flex flex-wrap gap-2 text-sm">
+                              <span className="rounded-full bg-[#e8f0e4] px-3 py-1 font-semibold text-[#2f6f3e]">
+                                {stage.label}
+                              </span>
+                              <span className="rounded-full bg-[#f6f8f4] px-3 py-1 font-semibold text-[#42513c]">
+                                {gig.category}
+                              </span>
+                              <span className="rounded-full bg-[#f6f8f4] px-3 py-1 font-semibold text-[#42513c]">
+                                {formatPay(gig)}
+                              </span>
+                            </div>
+
+                            <h3 className="text-2xl font-black">{gig.title}</h3>
+
+                            <p className="mt-3 line-clamp-3 leading-7 text-[#42513c]">
+                              {gig.description}
+                            </p>
+
+                            <div className="mt-4 grid gap-3 text-sm text-[#42513c] md:grid-cols-3">
+                              <p className="rounded-2xl bg-[#f6f8f4] p-4">
+                                <span className="block font-semibold text-[#142014]">
+                                  Location
+                                </span>
+                                {gig.location_area ?? "Remote / not set"}
+                              </p>
+
+                              <p className="rounded-2xl bg-[#f6f8f4] p-4">
+                                <span className="block font-semibold text-[#142014]">
+                                  Timing
+                                </span>
+                                {gig.schedule_summary ?? "Flexible"}
+                              </p>
+
+                              <p className="rounded-2xl bg-[#f6f8f4] p-4">
+                                <span className="block font-semibold text-[#142014]">
+                                  Candidates
+                                </span>
+                                {gigRecommendations.length} recommendation
+                                {gigRecommendations.length === 1 ? "" : "s"}
+                              </p>
+                            </div>
+
+                            <div className="mt-4 rounded-2xl bg-[#e8f0e4] p-4">
+                              <p className="font-semibold text-[#2f6f3e]">
+                                Next step
+                              </p>
+                              <p className="mt-2 text-[#42513c]">
+                                {stage.nextStep}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex shrink-0 flex-col gap-2 lg:justify-center">
+                            {gigRecommendations.length > 0 && !hasContact && (
+                              <a
+                                href={`/posted-gigs/${gig.id}/recommendations`}
+                                className="rounded-full bg-[#2f6f3e] px-5 py-3 text-center font-semibold text-white"
+                              >
+                                Review candidates
+                              </a>
+                            )}
+
+                            {hasContact && !completion?.poster_confirmed && (
+                              <>
+                                <a
+                                  href="/contacts"
+                                  className="rounded-full bg-[#2f6f3e] px-5 py-3 text-center font-semibold text-white"
+                                >
+                                  View contact
+                                </a>
+                                <a
+                                  href="/completions"
+                                  className="rounded-full border border-black/10 px-5 py-3 text-center font-semibold hover:bg-[#f6f8f4]"
+                                >
+                                  Confirm complete
+                                </a>
+                              </>
+                            )}
+
+                            {completion?.poster_confirmed && (
+                              <a
+                                href="/payments"
+                                className="rounded-full bg-[#2f6f3e] px-5 py-3 text-center font-semibold text-white"
+                              >
+                                View payments
+                              </a>
+                            )}
+
+                            <a
+                              href={`/gigs/${gig.id}`}
+                              className="rounded-full border border-black/10 px-5 py-3 text-center font-semibold hover:bg-[#f6f8f4]"
+                            >
+                              View public page
+                            </a>
+                          </div>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+
+            <section>
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-3xl font-black">All posted gigs</h2>
+                <span className="rounded-full bg-[#e8f0e4] px-4 py-2 text-sm font-semibold text-[#2f6f3e]">
+                  {gigs.length} total
+                </span>
+              </div>
+
+              <div className="grid gap-4">
+                {gigs.map((gig) => {
+                  const gigRecommendations =
+                    recommendationsByGig.get(gig.id) ?? [];
+                  const hasContact =
+                    (contactsByGig.get(gig.id)?.length ?? 0) > 0;
+                  const completion = completionByGig.get(gig.id);
+
+                  const stage = stageInfo({
+                    gig,
+                    recommendationCount: gigRecommendations.length,
+                    hasContact,
+                    completion,
+                  });
+
+                  return (
+                    <article
+                      key={gig.id}
+                      className="rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-black/10"
+                    >
+                      <div className="flex flex-col justify-between gap-4 md:flex-row">
+                        <div>
+                          <div className="mb-3 flex flex-wrap gap-2 text-sm">
+                            <span className="rounded-full bg-[#e8f0e4] px-3 py-1 font-semibold text-[#2f6f3e]">
+                              {stage.label}
+                            </span>
+                            <span className="rounded-full bg-[#f6f8f4] px-3 py-1 font-semibold text-[#42513c]">
+                              {formatStatus(gig.status)}
+                            </span>
+                          </div>
+
+                          <h3 className="text-xl font-black">{gig.title}</h3>
+
+                          <p className="mt-2 text-[#42513c]">
+                            {stage.description}
+                          </p>
+                        </div>
+
+                        <div className="flex shrink-0 flex-col gap-2 md:justify-center">
+                          {gigRecommendations.length > 0 && (
+                            <a
+                              href={`/posted-gigs/${gig.id}/recommendations`}
+                              className="rounded-full bg-[#2f6f3e] px-5 py-3 text-center font-semibold text-white"
+                            >
+                              Candidates
+                            </a>
+                          )}
+
+                          <a
+                            href={`/gigs/${gig.id}`}
+                            className="rounded-full border border-black/10 px-5 py-3 text-center font-semibold hover:bg-[#f6f8f4]"
+                          >
+                            View
+                          </a>
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            </section>
+          </div>
+        )}
       </section>
     </main>
   );
