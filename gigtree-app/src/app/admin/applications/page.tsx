@@ -1,4 +1,5 @@
 "use client";
+import { SiteHeader } from "@/components/site-header";
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
@@ -171,22 +172,7 @@ export default function AdminApplicationsPage() {
   return (
     <main className="min-h-screen bg-[#f6f8f4] text-[#172014]">
       <section className="mx-auto max-w-7xl px-6 py-8">
-        <nav className="flex flex-wrap items-center justify-between gap-4">
-          <a href="/" className="text-2xl font-bold tracking-tight">
-            Gigtree
-          </a>
-          <div className="flex flex-wrap items-center gap-3 text-sm">
-            <a href="/admin" className="hover:underline">
-              Admin
-            </a>
-            <a href="/admin/recommendations" className="hover:underline">
-              Recommendations
-            </a>
-            <a href="/admin/audit" className="hover:underline">
-              Audit
-            </a>
-          </div>
-        </nav>
+          <SiteHeader active="admin" />
 
         <div className="py-12">
           <p className="font-semibold text-[#2f6f3e]">Admin applications</p>
