@@ -1,5 +1,11 @@
 const dashboardCards = [
   {
+    title: "Worker profile",
+    description: "Edit your skills, availability, experience, and CV details.",
+    href: "/profile",
+    action: "Edit profile",
+  },
+  {
     title: "Browse gigs",
     description: "Find local and online opportunities across the UK.",
     href: "/gigs",
