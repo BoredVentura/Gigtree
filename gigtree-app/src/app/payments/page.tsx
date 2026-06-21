@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 type Payment = {
@@ -16,6 +16,9 @@ type Payment = {
   gigs: {
     title: string;
     category: string;
+    description: string;
+    location_area: string | null;
+    schedule_summary: string | null;
   } | null;
 };
 
@@ -26,45 +29,45 @@ function formatStatus(status: string) {
     .join(" ");
 }
 
-function paymentStatusInfo(status: string) {
+function paymentInfo(status: string) {
   switch (status) {
     case "held":
       return {
-        label: "Payment held",
+        label: "Held",
         description:
-          "A placeholder payment record has been created and funds are treated as held.",
+          "Payment is held while the gig moves through selection, contact, and completion.",
         nextStep:
-          "Complete the gig, then the poster should confirm completion.",
+          "Complete the gig flow. Poster completion confirmation is needed later.",
       };
     case "pending_admin_confirmation":
       return {
         label: "Waiting for admin completion review",
         description:
-          "The poster has confirmed the job is complete. Gigtree admin now needs to review completion.",
+          "The poster has confirmed completion. Admin needs to review before payout can move forward.",
         nextStep:
-          "Wait for admin confirmation.",
+          "Wait for admin completion review.",
       };
     case "pending_worker_verification":
       return {
         label: "Waiting for worker verification",
         description:
-          "Admin has confirmed completion. Worker verification must be approved before payout can be released.",
+          "Completion has been reviewed. Worker verification is needed before release.",
         nextStep:
-          "Submit or wait for verification approval.",
+          "Worker should complete verification if not already approved.",
       };
     case "ready_for_release":
       return {
-        label: "Ready for payout release",
+        label: "Ready for release",
         description:
-          "Completion and verification are approved. The payout is ready for admin release.",
+          "Completion and verification are approved. Admin can release the payout.",
         nextStep:
-          "Admin can release the payout.",
+          "Wait for admin payout release.",
       };
     case "released":
       return {
-        label: "Payout released",
+        label: "Released",
         description:
-          "The worker payout has been marked as released in the placeholder payment flow.",
+          "The payout has been marked as released.",
         nextStep:
           "No further payment action is needed.",
       };
@@ -74,132 +77,163 @@ function paymentStatusInfo(status: string) {
         description:
           "This payment has an updated status.",
         nextStep:
-          "Check your status overview or contact Gigtree admin.",
+          "Check your dashboard or contact Gigtree if unsure.",
       };
   }
 }
 
 export default function PaymentsPage() {
+  const [userId, setUserId] = useState("");
   const [payments, setPayments] = useState<Payment[]>([]);
   const [message, setMessage] = useState("Loading payments...");
 
-  useEffect(() => {
-    async function loadPayments() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+  async function loadPayments() {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-      if (!user) {
-        setMessage("Please sign in to view payments.");
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from("payments")
-        .select(
-          `
-          id,
-          gig_id,
-          poster_id,
-          worker_id,
-          amount_gbp,
-          commission_amount_gbp,
-          worker_payout_amount_gbp,
-          status,
-          created_at,
-          gigs (
-            title,
-            category
-          )
-        `
-        )
-        .or(`poster_id.eq.${user.id},worker_id.eq.${user.id}`)
-        .order("created_at", { ascending: false });
-
-      if (error) {
-        setMessage(error.message);
-        return;
-      }
-
-      setPayments((data ?? []) as Payment[]);
-      setMessage("");
+    if (!user) {
+      setMessage("Please sign in to view payments.");
+      return;
     }
 
+    setUserId(user.id);
+
+    const { data, error } = await supabase
+      .from("payments")
+      .select(
+        `
+        id,
+        gig_id,
+        poster_id,
+        worker_id,
+        amount_gbp,
+        commission_amount_gbp,
+        worker_payout_amount_gbp,
+        status,
+        created_at,
+        gigs (
+          title,
+          category,
+          description,
+          location_area,
+          schedule_summary
+        )
+      `
+      )
+      .or(`poster_id.eq.${user.id},worker_id.eq.${user.id}`)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      setMessage(error.message);
+      return;
+    }
+
+    setPayments((data ?? []) as Payment[]);
+    setMessage("");
+  }
+
+  useEffect(() => {
     loadPayments();
   }, []);
 
+  const workerPayments = useMemo(() => {
+    return payments.filter((payment) => payment.worker_id === userId);
+  }, [payments, userId]);
+
+  const posterPayments = useMemo(() => {
+    return payments.filter((payment) => payment.poster_id === userId);
+  }, [payments, userId]);
+
+  const activePayments = useMemo(() => {
+    return payments.filter((payment) => payment.status !== "released");
+  }, [payments]);
+
+  const releasedPayments = useMemo(() => {
+    return payments.filter((payment) => payment.status === "released");
+  }, [payments]);
+
+  const totalHeld = activePayments.reduce(
+    (sum, payment) => sum + Number(payment.amount_gbp ?? 0),
+    0
+  );
+
+  const totalWorkerPayout = payments
+    .filter((payment) => payment.worker_id === userId)
+    .reduce((sum, payment) => sum + Number(payment.worker_payout_amount_gbp ?? 0), 0);
+
   return (
-    <main className="min-h-screen bg-[#f6f8f4] text-[#172014]">
-      <section className="mx-auto max-w-6xl px-6 py-8">
+    <main className="min-h-screen bg-[#fbfff6] text-[#142014]">
+      <section className="mx-auto max-w-7xl px-6 py-8">
         <nav className="flex flex-wrap items-center justify-between gap-4">
-          <a href="/" className="text-2xl font-bold tracking-tight">
-            Gigtree
+          <a href="/" className="flex items-center gap-3">
+            <span className="grid h-11 w-11 place-items-center rounded-2xl bg-[#2f6f3e] text-xl text-white shadow-lg shadow-[#2f6f3e]/20">
+              ✦
+            </span>
+            <span className="text-2xl font-black tracking-tight">Gigtree</span>
           </a>
-          <div className="flex flex-wrap items-center gap-3 text-sm">
-            <a href="/dashboard" className="hover:underline">
+
+          <div className="flex flex-wrap items-center gap-3 text-sm font-semibold">
+            <a href="/dashboard" className="rounded-full px-4 py-2 hover:bg-white">
               Dashboard
             </a>
-            <a href="/status" className="hover:underline">
-              Status
+            <a href="/completions" className="rounded-full px-4 py-2 hover:bg-white">
+              Completions
             </a>
-            <a href="/contacts" className="hover:underline">
-              Contacts
-            </a>
-            <a href="/verification" className="hover:underline">
+            <a href="/verification" className="rounded-full px-4 py-2 hover:bg-white">
               Verification
             </a>
           </div>
         </nav>
 
-        <div className="py-12">
-          <p className="font-semibold text-[#2f6f3e]">Payments</p>
-          <h1 className="mt-3 max-w-3xl text-4xl font-black tracking-tight sm:text-5xl">
-            Track held payments and payouts.
-          </h1>
-          <p className="mt-5 max-w-2xl text-lg leading-8 text-[#42513c]">
-            This is the placeholder payment flow before Stripe is connected.
-            Gigtree will later hold funds and release payouts after completion
-            and verification checks.
-          </p>
+        <div className="grid gap-8 py-12 lg:grid-cols-[1fr_360px]">
+          <div>
+            <p className="font-semibold text-[#2f6f3e]">Payments</p>
+            <h1 className="mt-3 max-w-4xl text-5xl font-black leading-tight tracking-tight">
+              Track held payments and payout progress.
+            </h1>
+            <p className="mt-5 max-w-3xl text-lg leading-8 text-[#42513c]">
+              Gigtree payments move through a trust flow: held payment,
+              completion confirmation, admin review, worker verification, and
+              payout release.
+            </p>
+          </div>
+
+          <aside className="h-fit rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-black/10">
+            <h2 className="text-2xl font-black">Payment summary</h2>
+
+            <div className="mt-5 grid gap-3 text-sm text-[#42513c]">
+              <div className="rounded-2xl bg-[#f6f8f4] p-4">
+                <span className="block text-2xl font-black text-[#142014]">
+                  {payments.length}
+                </span>
+                Total payment records
+              </div>
+
+              <div className="rounded-2xl bg-[#f6f8f4] p-4">
+                <span className="block text-2xl font-black text-[#142014]">
+                  £{totalHeld}
+                </span>
+                Active held / in-progress value
+              </div>
+
+              <div className="rounded-2xl bg-[#f6f8f4] p-4">
+                <span className="block text-2xl font-black text-[#142014]">
+                  £{totalWorkerPayout}
+                </span>
+                Worker payout value linked to you
+              </div>
+            </div>
+          </aside>
         </div>
 
-        <section className="mb-6 rounded-3xl border border-[#2f6f3e]/20 bg-[#e8f0e4] p-6 shadow-sm">
-          <h2 className="text-2xl font-bold">Payment status guide</h2>
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
-            <div className="rounded-2xl bg-white/70 p-4">
-              <p className="font-semibold">Held</p>
-              <p className="mt-1 text-sm text-[#42513c]">
-                Payment has been created and is treated as held.
-              </p>
-            </div>
-            <div className="rounded-2xl bg-white/70 p-4">
-              <p className="font-semibold">Pending admin confirmation</p>
-              <p className="mt-1 text-sm text-[#42513c]">
-                Poster says the job is complete. Admin needs to review.
-              </p>
-            </div>
-            <div className="rounded-2xl bg-white/70 p-4">
-              <p className="font-semibold">Pending worker verification</p>
-              <p className="mt-1 text-sm text-[#42513c]">
-                Completion is confirmed, but worker verification is still needed.
-              </p>
-            </div>
-            <div className="rounded-2xl bg-white/70 p-4">
-              <p className="font-semibold">Ready / released</p>
-              <p className="mt-1 text-sm text-[#42513c]">
-                Payout is ready for admin release, or has already been released.
-              </p>
-            </div>
-          </div>
-        </section>
-
         {message && (
-          <div className="rounded-3xl bg-white p-6 shadow-sm">
-            <p className="text-[#42513c]">{message}</p>
+          <div className="mb-6 rounded-3xl bg-white p-5 text-[#42513c] shadow-sm ring-1 ring-black/10">
+            {message}
             {message.includes("sign in") && (
               <a
                 href="/login"
-                className="mt-5 inline-block rounded-full bg-[#2f6f3e] px-5 py-3 font-semibold text-white"
+                className="mt-4 inline-block rounded-full bg-[#2f6f3e] px-5 py-3 font-semibold text-white"
               >
                 Sign in
               </a>
@@ -207,104 +241,231 @@ export default function PaymentsPage() {
           </div>
         )}
 
-        {!message && payments.length === 0 && (
-          <div className="rounded-3xl bg-white p-6 shadow-sm">
-            <h2 className="text-2xl font-bold">No payments yet</h2>
-            <p className="mt-3 text-[#42513c]">
-              Payment records appear after an accepted gig creates a held
-              payment.
+        {userId && payments.length === 0 && !message && (
+          <div className="rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-black/10">
+            <h2 className="text-3xl font-black">No payments yet</h2>
+            <p className="mt-3 max-w-2xl leading-7 text-[#42513c]">
+              Payment records will appear here after gigs move into the payment
+              flow.
             </p>
+
             <a
-              href="/status"
-              className="mt-5 inline-block rounded-full bg-[#2f6f3e] px-5 py-3 font-semibold text-white"
+              href="/dashboard"
+              className="mt-6 inline-block rounded-full bg-[#2f6f3e] px-6 py-4 font-bold text-white shadow-xl shadow-[#2f6f3e]/20"
             >
-              View status
+              Back to dashboard
             </a>
           </div>
         )}
 
-        <div className="grid gap-5">
-          {payments.map((payment) => {
-            const info = paymentStatusInfo(payment.status);
-
-            return (
-              <article
-                key={payment.id}
-                className="rounded-3xl border border-black/10 bg-white p-6 shadow-sm"
-              >
-                <div className="mb-3 flex flex-wrap gap-2 text-sm">
-                  <span className="rounded-full bg-[#e8f0e4] px-3 py-1 font-semibold text-[#2f6f3e]">
-                    {info.label}
-                  </span>
-                  <span className="rounded-full bg-[#f6f8f4] px-3 py-1 font-semibold">
-                    {payment.gigs?.category ?? "Gig"}
-                  </span>
-                  <span className="rounded-full bg-[#f6f8f4] px-3 py-1 font-semibold">
-                    Created {new Date(payment.created_at).toLocaleDateString()}
-                  </span>
-                </div>
-
-                <h2 className="text-2xl font-bold">
-                  {payment.gigs?.title ?? "Unknown gig"}
+        {userId && payments.length > 0 && (
+          <div className="grid gap-8 pb-16">
+            <section className="grid gap-5 md:grid-cols-2">
+              <div className="rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-black/10">
+                <p className="font-semibold text-[#2f6f3e]">As worker</p>
+                <h2 className="mt-2 text-3xl font-black">
+                  {workerPayments.length} payment
+                  {workerPayments.length === 1 ? "" : "s"}
                 </h2>
+                <p className="mt-3 leading-7 text-[#42513c]">
+                  These are payments where you are linked as the worker.
+                </p>
+              </div>
 
-                <div className="mt-5 grid gap-4 md:grid-cols-3">
-                  <div className="rounded-2xl bg-[#f6f8f4] p-4">
-                    <p className="text-sm font-semibold text-[#42513c]">
-                      Total held
-                    </p>
-                    <p className="mt-1 text-xl font-bold">
-                      £{payment.amount_gbp}
-                    </p>
-                  </div>
+              <div className="rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-black/10">
+                <p className="font-semibold text-[#2f6f3e]">As poster</p>
+                <h2 className="mt-2 text-3xl font-black">
+                  {posterPayments.length} payment
+                  {posterPayments.length === 1 ? "" : "s"}
+                </h2>
+                <p className="mt-3 leading-7 text-[#42513c]">
+                  These are payments linked to gigs you posted.
+                </p>
+              </div>
+            </section>
 
-                  <div className="rounded-2xl bg-[#f6f8f4] p-4">
-                    <p className="text-sm font-semibold text-[#42513c]">
-                      Gigtree commission
-                    </p>
-                    <p className="mt-1 text-xl font-bold">
-                      £{payment.commission_amount_gbp}
-                    </p>
-                  </div>
+            <section>
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-3xl font-black">Active payments</h2>
+                <span className="rounded-full bg-[#e8f0e4] px-4 py-2 text-sm font-semibold text-[#2f6f3e]">
+                  {activePayments.length} active
+                </span>
+              </div>
 
-                  <div className="rounded-2xl bg-[#f6f8f4] p-4">
-                    <p className="text-sm font-semibold text-[#42513c]">
-                      Worker payout
-                    </p>
-                    <p className="mt-1 text-xl font-bold">
-                      £{payment.worker_payout_amount_gbp}
-                    </p>
-                  </div>
+              {activePayments.length === 0 ? (
+                <div className="rounded-[2rem] bg-white p-6 text-[#42513c] shadow-sm ring-1 ring-black/10">
+                  No active payments right now.
                 </div>
+              ) : (
+                <div className="grid gap-5">
+                  {activePayments.map((payment) => {
+                    const info = paymentInfo(payment.status);
+                    const isWorker = payment.worker_id === userId;
+                    const isPoster = payment.poster_id === userId;
 
-                <div className="mt-5 rounded-2xl bg-[#f6f8f4] p-4">
-                  <p className="font-semibold">What this means</p>
-                  <p className="mt-2 text-[#42513c]">{info.description}</p>
-                </div>
+                    return (
+                      <article
+                        key={payment.id}
+                        className="rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-black/10"
+                      >
+                        <div className="flex flex-col justify-between gap-5 lg:flex-row">
+                          <div>
+                            <div className="mb-3 flex flex-wrap gap-2 text-sm">
+                              <span className="rounded-full bg-[#e8f0e4] px-3 py-1 font-semibold text-[#2f6f3e]">
+                                {info.label}
+                              </span>
+                              <span className="rounded-full bg-[#f6f8f4] px-3 py-1 font-semibold text-[#42513c]">
+                                {payment.gigs?.category ?? "Gig"}
+                              </span>
+                              <span className="rounded-full bg-[#f6f8f4] px-3 py-1 font-semibold text-[#42513c]">
+                                You are: {isWorker ? "Worker" : isPoster ? "Poster" : "Linked user"}
+                              </span>
+                            </div>
 
-                <div className="mt-3 rounded-2xl bg-[#e8f0e4] p-4">
-                  <p className="font-semibold text-[#2f6f3e]">Next step</p>
-                  <p className="mt-2 text-[#42513c]">{info.nextStep}</p>
-                </div>
+                            <h3 className="text-2xl font-black">
+                              {payment.gigs?.title ?? "Unknown gig"}
+                            </h3>
 
-                <div className="mt-5 flex flex-wrap gap-3">
-                  <a
-                    href="/status"
-                    className="rounded-full border border-black/10 px-5 py-3 font-semibold hover:bg-[#f6f8f4]"
-                  >
-                    View status
-                  </a>
-                  <a
-                    href="/verification"
-                    className="rounded-full border border-black/10 px-5 py-3 font-semibold hover:bg-[#f6f8f4]"
-                  >
-                    Verification
-                  </a>
+                            <p className="mt-3 line-clamp-3 leading-7 text-[#42513c]">
+                              {payment.gigs?.description ?? "Gig details unavailable."}
+                            </p>
+
+                            <div className="mt-4 grid gap-3 text-sm text-[#42513c] md:grid-cols-3">
+                              <p className="rounded-2xl bg-[#f6f8f4] p-4">
+                                <span className="block font-semibold text-[#142014]">
+                                  Total amount
+                                </span>
+                                £{payment.amount_gbp}
+                              </p>
+
+                              <p className="rounded-2xl bg-[#f6f8f4] p-4">
+                                <span className="block font-semibold text-[#142014]">
+                                  Commission
+                                </span>
+                                £{payment.commission_amount_gbp}
+                              </p>
+
+                              <p className="rounded-2xl bg-[#f6f8f4] p-4">
+                                <span className="block font-semibold text-[#142014]">
+                                  Worker payout
+                                </span>
+                                £{payment.worker_payout_amount_gbp}
+                              </p>
+                            </div>
+
+                            <div className="mt-4 rounded-2xl bg-[#f6f8f4] p-4">
+                              <p className="font-semibold text-[#142014]">
+                                What this means
+                              </p>
+                              <p className="mt-2 text-[#42513c]">
+                                {info.description}
+                              </p>
+                            </div>
+
+                            <div className="mt-3 rounded-2xl bg-[#e8f0e4] p-4">
+                              <p className="font-semibold text-[#2f6f3e]">
+                                Next step
+                              </p>
+                              <p className="mt-2 text-[#42513c]">
+                                {info.nextStep}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex shrink-0 flex-col gap-2 lg:justify-center">
+                            {isPoster && (
+                              <a
+                                href="/completions"
+                                className="rounded-full bg-[#2f6f3e] px-5 py-3 text-center font-semibold text-white"
+                              >
+                                Completion
+                              </a>
+                            )}
+
+                            {isWorker && (
+                              <a
+                                href="/verification"
+                                className="rounded-full bg-[#2f6f3e] px-5 py-3 text-center font-semibold text-white"
+                              >
+                                Verification
+                              </a>
+                            )}
+
+                            <a
+                              href={`/gigs/${payment.gig_id}`}
+                              className="rounded-full border border-black/10 px-5 py-3 text-center font-semibold hover:bg-[#f6f8f4]"
+                            >
+                              View gig
+                            </a>
+                          </div>
+                        </div>
+                      </article>
+                    );
+                  })}
                 </div>
-              </article>
-            );
-          })}
-        </div>
+              )}
+            </section>
+
+            <section>
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-3xl font-black">Released payments</h2>
+                <span className="rounded-full bg-[#e8f0e4] px-4 py-2 text-sm font-semibold text-[#2f6f3e]">
+                  {releasedPayments.length} released
+                </span>
+              </div>
+
+              {releasedPayments.length === 0 ? (
+                <div className="rounded-[2rem] bg-white p-6 text-[#42513c] shadow-sm ring-1 ring-black/10">
+                  No released payments yet.
+                </div>
+              ) : (
+                <div className="grid gap-4">
+                  {releasedPayments.map((payment) => {
+                    const isWorker = payment.worker_id === userId;
+                    const isPoster = payment.poster_id === userId;
+
+                    return (
+                      <article
+                        key={payment.id}
+                        className="rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-black/10"
+                      >
+                        <div className="flex flex-col justify-between gap-4 md:flex-row">
+                          <div>
+                            <div className="mb-3 flex flex-wrap gap-2 text-sm">
+                              <span className="rounded-full bg-[#e8f0e4] px-3 py-1 font-semibold text-[#2f6f3e]">
+                                Released
+                              </span>
+                              <span className="rounded-full bg-[#f6f8f4] px-3 py-1 font-semibold text-[#42513c]">
+                                You are: {isWorker ? "Worker" : isPoster ? "Poster" : "Linked user"}
+                              </span>
+                            </div>
+
+                            <h3 className="text-xl font-black">
+                              {payment.gigs?.title ?? "Unknown gig"}
+                            </h3>
+
+                            <p className="mt-2 text-[#42513c]">
+                              Worker payout: £{payment.worker_payout_amount_gbp}
+                            </p>
+                          </div>
+
+                          <div className="flex shrink-0 flex-col gap-2 md:justify-center">
+                            <a
+                              href={`/gigs/${payment.gig_id}`}
+                              className="rounded-full border border-black/10 px-5 py-3 text-center font-semibold hover:bg-[#f6f8f4]"
+                            >
+                              View gig
+                            </a>
+                          </div>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          </div>
+        )}
       </section>
     </main>
   );
