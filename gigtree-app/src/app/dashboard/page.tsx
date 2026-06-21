@@ -8,8 +8,8 @@ const dashboardCards = [
   {
     title: "My applications",
     description: "Track gigs you have applied for and see current statuses.",
-    href: "#",
-    action: "Coming soon",
+    href: "/applications",
+    action: "View applications",
   },
   {
     title: "Post a gig request",

@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { ApplyForm } from "@/components/apply-form";
 
 type Gig = {
   id: string;
@@ -87,9 +88,12 @@ export default async function GigDetailPage({
             <a href="/dashboard" className="hidden sm:inline hover:underline">
               Dashboard
             </a>
-            <button className="rounded-full border border-[#172014]/20 px-4 py-2">
+            <a
+              href="/login"
+              className="rounded-full border border-[#172014]/20 px-4 py-2"
+            >
               Sign in
-            </button>
+            </a>
           </div>
         </nav>
 
@@ -154,61 +158,11 @@ export default async function GigDetailPage({
           <aside className="rounded-3xl bg-white p-6 shadow-sm lg:sticky lg:top-6 lg:self-start">
             <h2 className="text-2xl font-bold">Apply for this gig</h2>
             <p className="mt-2 text-sm leading-6 text-[#42513c]">
-              This form is still visual only. Next, we will connect applications
-              to Supabase and user accounts.
+              Submit your availability and relevant experience. Gigtree will
+              review applications before making recommendations.
             </p>
 
-            <form className="mt-6 space-y-4">
-              <div>
-                <label className="text-sm font-semibold">Full name</label>
-                <input
-                  className="mt-2 w-full rounded-2xl border border-black/10 px-4 py-3 outline-none"
-                  placeholder="Your full name"
-                />
-              </div>
-
-              <div>
-                <label className="text-sm font-semibold">Email address</label>
-                <input
-                  type="email"
-                  className="mt-2 w-full rounded-2xl border border-black/10 px-4 py-3 outline-none"
-                  placeholder="you@example.com"
-                />
-              </div>
-
-              <div>
-                <label className="text-sm font-semibold">Availability</label>
-                <input
-                  className="mt-2 w-full rounded-2xl border border-black/10 px-4 py-3 outline-none"
-                  placeholder="When are you available?"
-                />
-              </div>
-
-              <div>
-                <label className="text-sm font-semibold">
-                  Relevant experience
-                </label>
-                <textarea
-                  className="mt-2 min-h-32 w-full rounded-2xl border border-black/10 px-4 py-3 outline-none"
-                  placeholder="Briefly describe relevant experience"
-                />
-              </div>
-
-              <label className="flex gap-3 rounded-2xl bg-[#f6f8f4] p-4 text-sm text-[#42513c]">
-                <input type="checkbox" className="mt-1" />
-                <span>
-                  I confirm I meet the requirements and understand that Gigtree
-                  may review my application before recommending me.
-                </span>
-              </label>
-
-              <button
-                type="button"
-                className="w-full rounded-full bg-[#2f6f3e] px-5 py-3 font-semibold text-white"
-              >
-                Submit application
-              </button>
-            </form>
+            <ApplyForm gigId={gig.id} />
           </aside>
         </div>
       </section>
