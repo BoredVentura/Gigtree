@@ -1,26 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 export default function PostGigPage() {
-  const [userId, setUserId] = useState("");
   const [canPost, setCanPost] = useState(false);
-  const [checkingAccess, setCheckingAccess] = useState(true);
+  const [message, setMessage] = useState("Checking poster access...");
+  const [loading, setLoading] = useState(false);
 
   const [title, setTitle] = useState("");
+  const [category, setCategory] = useState("Home help");
   const [description, setDescription] = useState("");
-  const [category, setCategory] = useState("Events");
-  const [trustLevel, setTrustLevel] = useState<"low" | "medium" | "high">("low");
-  const [locationType, setLocationType] = useState<"online" | "in_person">("online");
+  const [locationType, setLocationType] = useState<"remote" | "in_person" | "hybrid">("in_person");
   const [locationArea, setLocationArea] = useState("");
-  const [payType, setPayType] = useState<"hourly" | "fixed">("fixed");
-  const [payAmount, setPayAmount] = useState("");
+  const [payType, setPayType] = useState<"hourly" | "fixed">("hourly");
+  const [hourlyRate, setHourlyRate] = useState("");
+  const [fixedAmount, setFixedAmount] = useState("");
   const [scheduleSummary, setScheduleSummary] = useState("");
-  const [requirements, setRequirements] = useState("");
-
-  const [message, setMessage] = useState("Checking posting access...");
-  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     async function checkAccess() {
@@ -29,294 +25,345 @@ export default function PostGigPage() {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        setMessage("Please sign in to post a gig.");
-        setCheckingAccess(false);
+        setMessage("Please sign in before posting a gig.");
         return;
       }
 
-      setUserId(user.id);
-
-      const { data, error } = await supabase
+      const { data: profile, error } = await supabase
         .from("profiles")
-        .select("can_post_gigs,age_confirmed")
+        .select("can_post_gigs")
         .eq("id", user.id)
         .single();
 
       if (error) {
         setMessage(error.message);
-        setCheckingAccess(false);
         return;
       }
 
-      if (!data?.can_post_gigs) {
-        setMessage("Your account is not approved to post gigs yet.");
-        setCheckingAccess(false);
+      if (!profile?.can_post_gigs) {
+        setMessage("You need Gigtree approval before posting gigs.");
+        setCanPost(false);
         return;
       }
 
       setCanPost(true);
       setMessage("");
-      setCheckingAccess(false);
     }
 
     checkAccess();
   }, []);
 
-  async function createGig() {
-    if (!userId || !canPost) {
-      setMessage("You are not approved to post gigs.");
-      return;
-    }
-
-    if (!title.trim() || !description.trim() || !payAmount.trim()) {
-      setMessage("Please enter a title, description, and pay amount.");
-      return;
-    }
-
+  async function createGig(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     setLoading(true);
     setMessage("");
 
-    const amount = Number(payAmount);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-    if (Number.isNaN(amount) || amount <= 0) {
-      setMessage("Please enter a valid pay amount.");
+    if (!user) {
+      setMessage("Please sign in before posting a gig.");
+      setLoading(false);
+      return;
+    }
+
+    if (!title || !category || !description || !scheduleSummary) {
+      setMessage("Please complete the title, category, description, and timing.");
+      setLoading(false);
+      return;
+    }
+
+    if (locationType !== "remote" && !locationArea) {
+      setMessage("Please add the location area for in-person or hybrid gigs.");
+      setLoading(false);
+      return;
+    }
+
+    if (payType === "hourly" && !hourlyRate) {
+      setMessage("Please add an hourly rate.");
+      setLoading(false);
+      return;
+    }
+
+    if (payType === "fixed" && !fixedAmount) {
+      setMessage("Please add a fixed amount.");
       setLoading(false);
       return;
     }
 
     const { error } = await supabase.from("gigs").insert({
-      poster_id: userId,
+      poster_id: user.id,
       title,
-      description,
       category,
-      trust_level: trustLevel,
+      description,
       location_type: locationType,
-      location_area: locationArea || (locationType === "online" ? "Remote UK" : null),
+      location_area: locationType === "remote" ? null : locationArea,
       pay_type: payType,
-      hourly_rate: payType === "hourly" ? amount : null,
-      fixed_amount: payType === "fixed" ? amount : null,
-      currency: "GBP",
+      hourly_rate: payType === "hourly" ? Number(hourlyRate) : null,
+      fixed_amount: payType === "fixed" ? Number(fixedAmount) : null,
       schedule_summary: scheduleSummary,
-      requirements: requirements
-        .split("\n")
-        .map((item) => item.trim())
-        .filter(Boolean),
       status: "open",
     });
 
     if (error) {
       setMessage(error.message);
-    } else {
-      setMessage("Gig posted successfully.");
-      setTitle("");
-      setDescription("");
-      setCategory("Events");
-      setTrustLevel("low");
-      setLocationType("online");
-      setLocationArea("");
-      setPayType("fixed");
-      setPayAmount("");
-      setScheduleSummary("");
-      setRequirements("");
+      setLoading(false);
+      return;
     }
 
+    setTitle("");
+    setCategory("Home help");
+    setDescription("");
+    setLocationType("in_person");
+    setLocationArea("");
+    setPayType("hourly");
+    setHourlyRate("");
+    setFixedAmount("");
+    setScheduleSummary("");
+
+    setMessage("Gig posted. Gigtree can now review applicants and recommend candidates.");
     setLoading(false);
   }
 
   return (
     <main className="min-h-screen bg-[#f6f8f4] text-[#172014]">
-      <section className="mx-auto max-w-4xl px-6 py-8">
-        <nav className="flex items-center justify-between">
+      <section className="mx-auto max-w-6xl px-6 py-8">
+        <nav className="flex flex-wrap items-center justify-between gap-4">
           <a href="/" className="text-2xl font-bold tracking-tight">
             Gigtree
           </a>
-          <div className="flex items-center gap-3 text-sm">
-            <a href="/dashboard" className="hidden sm:inline hover:underline">
+          <div className="flex flex-wrap items-center gap-3 text-sm">
+            <a href="/dashboard" className="hover:underline">
               Dashboard
             </a>
-            <a href="/gigs" className="hidden sm:inline hover:underline">
-              Browse gigs
+            <a href="/posted-gigs" className="hover:underline">
+              My posted gigs
+            </a>
+            <a href="/post-request" className="hover:underline">
+              Poster access
             </a>
           </div>
         </nav>
 
-        <div className="py-12">
-          <p className="font-semibold text-[#2f6f3e]">Post a gig</p>
-          <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-5xl">
-            Create a new Gigtree listing.
-          </h1>
-          <p className="mt-5 max-w-2xl text-lg leading-8 text-[#42513c]">
-            Approved posters can publish online or in-person gigs. High-trust
-            gigs can require worker verification before applying.
-          </p>
-        </div>
+        <div className="grid gap-8 py-12 lg:grid-cols-[1fr_380px]">
+          <div>
+            <p className="font-semibold text-[#2f6f3e]">Post a gig</p>
+            <h1 className="mt-3 max-w-3xl text-4xl font-black tracking-tight sm:text-5xl">
+              Create a clear, safe gig.
+            </h1>
+            <p className="mt-5 max-w-2xl text-lg leading-8 text-[#42513c]">
+              Tell workers what the job involves, where it happens, when it is
+              needed, and how much it pays. Gigtree manages applications,
+              recommendations, confirmation, contact, and payment flow.
+            </p>
 
-        {message && (
-          <div className="mb-6 rounded-3xl bg-white p-5 text-[#42513c] shadow-sm">
-            {message}
-
-            {message.includes("sign in") && (
-              <a
-                href="/login"
-                className="mt-4 block rounded-full bg-[#2f6f3e] px-5 py-3 text-center font-semibold text-white"
-              >
-                Sign in
-              </a>
+            {message && (
+              <div className="mt-6 rounded-3xl bg-white p-5 text-[#42513c] shadow-sm">
+                {message}
+                {message.includes("sign in") && (
+                  <a
+                    href="/login"
+                    className="mt-4 inline-block rounded-full bg-[#2f6f3e] px-5 py-3 font-semibold text-white"
+                  >
+                    Sign in
+                  </a>
+                )}
+                {message.includes("approval") && (
+                  <a
+                    href="/post-request"
+                    className="mt-4 inline-block rounded-full bg-[#2f6f3e] px-5 py-3 font-semibold text-white"
+                  >
+                    Request poster access
+                  </a>
+                )}
+              </div>
             )}
 
-            {message.includes("not approved") && (
-              <a
-                href="/post-request"
-                className="mt-4 block rounded-full bg-[#2f6f3e] px-5 py-3 text-center font-semibold text-white"
+            {canPost && (
+              <form
+                onSubmit={createGig}
+                className="mt-8 grid gap-5 rounded-3xl bg-white p-6 shadow-sm"
               >
-                Request posting access
-              </a>
+                <label>
+                  <span className="text-sm font-semibold">Gig title</span>
+                  <input
+                    value={title}
+                    onChange={(event) => setTitle(event.target.value)}
+                    className="mt-2 w-full rounded-2xl border border-black/10 p-4 outline-none focus:border-[#2f6f3e]"
+                    placeholder="Example: Clean a flat in London"
+                  />
+                </label>
+
+                <label>
+                  <span className="text-sm font-semibold">Category</span>
+                  <select
+                    value={category}
+                    onChange={(event) => setCategory(event.target.value)}
+                    className="mt-2 w-full rounded-2xl border border-black/10 p-4 outline-none focus:border-[#2f6f3e]"
+                  >
+                    <option>Home help</option>
+                    <option>Events</option>
+                    <option>Admin</option>
+                    <option>Creative</option>
+                    <option>Tech</option>
+                    <option>Delivery</option>
+                    <option>Other</option>
+                  </select>
+                </label>
+
+                <label>
+                  <span className="text-sm font-semibold">Description</span>
+                  <textarea
+                    value={description}
+                    onChange={(event) => setDescription(event.target.value)}
+                    className="mt-2 min-h-36 w-full rounded-2xl border border-black/10 p-4 outline-none focus:border-[#2f6f3e]"
+                    placeholder="Describe the work, expected tasks, tools needed, and any safety details."
+                  />
+                </label>
+
+                <div className="grid gap-5 md:grid-cols-2">
+                  <label>
+                    <span className="text-sm font-semibold">Location type</span>
+                    <select
+                      value={locationType}
+                      onChange={(event) =>
+                        setLocationType(event.target.value as "remote" | "in_person" | "hybrid")
+                      }
+                      className="mt-2 w-full rounded-2xl border border-black/10 p-4 outline-none focus:border-[#2f6f3e]"
+                    >
+                      <option value="in_person">In person</option>
+                      <option value="remote">Remote</option>
+                      <option value="hybrid">Hybrid</option>
+                    </select>
+                  </label>
+
+                  <label>
+                    <span className="text-sm font-semibold">Location area</span>
+                    <input
+                      value={locationArea}
+                      onChange={(event) => setLocationArea(event.target.value)}
+                      disabled={locationType === "remote"}
+                      className="mt-2 w-full rounded-2xl border border-black/10 p-4 outline-none focus:border-[#2f6f3e] disabled:bg-black/5"
+                      placeholder="Example: London, Manchester, Remote UK"
+                    />
+                  </label>
+                </div>
+
+                <div className="grid gap-5 md:grid-cols-3">
+                  <label>
+                    <span className="text-sm font-semibold">Pay type</span>
+                    <select
+                      value={payType}
+                      onChange={(event) =>
+                        setPayType(event.target.value as "hourly" | "fixed")
+                      }
+                      className="mt-2 w-full rounded-2xl border border-black/10 p-4 outline-none focus:border-[#2f6f3e]"
+                    >
+                      <option value="hourly">Hourly</option>
+                      <option value="fixed">Fixed amount</option>
+                    </select>
+                  </label>
+
+                  <label>
+                    <span className="text-sm font-semibold">Hourly rate (£)</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={hourlyRate}
+                      onChange={(event) => setHourlyRate(event.target.value)}
+                      disabled={payType !== "hourly"}
+                      className="mt-2 w-full rounded-2xl border border-black/10 p-4 outline-none focus:border-[#2f6f3e] disabled:bg-black/5"
+                      placeholder="15"
+                    />
+                  </label>
+
+                  <label>
+                    <span className="text-sm font-semibold">Fixed amount (£)</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={fixedAmount}
+                      onChange={(event) => setFixedAmount(event.target.value)}
+                      disabled={payType !== "fixed"}
+                      className="mt-2 w-full rounded-2xl border border-black/10 p-4 outline-none focus:border-[#2f6f3e] disabled:bg-black/5"
+                      placeholder="100"
+                    />
+                  </label>
+                </div>
+
+                <label>
+                  <span className="text-sm font-semibold">Timing / schedule</span>
+                  <input
+                    value={scheduleSummary}
+                    onChange={(event) => setScheduleSummary(event.target.value)}
+                    className="mt-2 w-full rounded-2xl border border-black/10 p-4 outline-none focus:border-[#2f6f3e]"
+                    placeholder="Example: Sunday afternoon, flexible this week, 2 hours"
+                  />
+                </label>
+
+                <div className="rounded-2xl bg-[#f6f8f4] p-4 text-sm text-[#42513c]">
+                  <p className="font-semibold text-[#172014]">Before posting</p>
+                  <p className="mt-2">
+                    Do not post unlawful, unsafe, discriminatory, misleading, or
+                    exploitative work. Contact details stay hidden until the
+                    Gigtree selection and confirmation flow is complete.
+                  </p>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="rounded-full bg-[#2f6f3e] px-6 py-4 font-semibold text-white disabled:opacity-50"
+                >
+                  {loading ? "Posting..." : "Post gig"}
+                </button>
+              </form>
             )}
           </div>
-        )}
 
-        {!checkingAccess && canPost && (
-          <div className="space-y-5 rounded-3xl bg-white p-6 shadow-sm">
-            <div>
-              <label className="text-sm font-semibold">Gig title</label>
-              <input
-                value={title}
-                onChange={(event) => setTitle(event.target.value)}
-                className="mt-2 w-full rounded-2xl border border-black/10 px-4 py-3 outline-none"
-                placeholder="Example: Event assistant needed"
-              />
-            </div>
+          <aside className="h-fit rounded-3xl bg-white p-6 shadow-sm">
+            <h2 className="text-2xl font-bold">What happens next?</h2>
 
-            <div>
-              <label className="text-sm font-semibold">Description</label>
-              <textarea
-                value={description}
-                onChange={(event) => setDescription(event.target.value)}
-                className="mt-2 min-h-32 w-full rounded-2xl border border-black/10 px-4 py-3 outline-none"
-                placeholder="Describe the gig clearly"
-              />
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <label className="text-sm font-semibold">Category</label>
-                <select
-                  value={category}
-                  onChange={(event) => setCategory(event.target.value)}
-                  className="mt-2 w-full rounded-2xl border border-black/10 px-4 py-3 outline-none"
-                >
-                  <option>Events</option>
-                  <option>Admin</option>
-                  <option>Retail</option>
-                  <option>Creative</option>
-                  <option>Care</option>
-                  <option>Driving</option>
-                  <option>Home help</option>
-                  <option>Other</option>
-                </select>
+            <div className="mt-5 grid gap-4">
+              <div className="rounded-2xl bg-[#f6f8f4] p-4">
+                <p className="font-semibold">1. Workers apply</p>
+                <p className="mt-1 text-sm text-[#42513c]">
+                  Applicants submit private applications to Gigtree.
+                </p>
               </div>
 
-              <div>
-                <label className="text-sm font-semibold">Trust level</label>
-                <select
-                  value={trustLevel}
-                  onChange={(event) =>
-                    setTrustLevel(event.target.value as "low" | "medium" | "high")
-                  }
-                  className="mt-2 w-full rounded-2xl border border-black/10 px-4 py-3 outline-none"
-                >
-                  <option value="low">Low trust</option>
-                  <option value="medium">Medium trust</option>
-                  <option value="high">High trust - verification required</option>
-                </select>
+              <div className="rounded-2xl bg-[#f6f8f4] p-4">
+                <p className="font-semibold">2. Admin recommends</p>
+                <p className="mt-1 text-sm text-[#42513c]">
+                  Gigtree reviews applicants and sends anonymous summaries.
+                </p>
+              </div>
+
+              <div className="rounded-2xl bg-[#f6f8f4] p-4">
+                <p className="font-semibold">3. You select a candidate</p>
+                <p className="mt-1 text-sm text-[#42513c]">
+                  The worker then confirms they still want the gig.
+                </p>
+              </div>
+
+              <div className="rounded-2xl bg-[#f6f8f4] p-4">
+                <p className="font-semibold">4. Contact and completion</p>
+                <p className="mt-1 text-sm text-[#42513c]">
+                  Temporary contact is revealed, then completion and payment are
+                  handled through Gigtree.
+                </p>
               </div>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <label className="text-sm font-semibold">Location type</label>
-                <select
-                  value={locationType}
-                  onChange={(event) =>
-                    setLocationType(event.target.value as "online" | "in_person")
-                  }
-                  className="mt-2 w-full rounded-2xl border border-black/10 px-4 py-3 outline-none"
-                >
-                  <option value="online">Online</option>
-                  <option value="in_person">In-person</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-sm font-semibold">Location area</label>
-                <input
-                  value={locationArea}
-                  onChange={(event) => setLocationArea(event.target.value)}
-                  className="mt-2 w-full rounded-2xl border border-black/10 px-4 py-3 outline-none"
-                  placeholder="Example: Manchester or Remote UK"
-                />
-              </div>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <label className="text-sm font-semibold">Pay type</label>
-                <select
-                  value={payType}
-                  onChange={(event) =>
-                    setPayType(event.target.value as "hourly" | "fixed")
-                  }
-                  className="mt-2 w-full rounded-2xl border border-black/10 px-4 py-3 outline-none"
-                >
-                  <option value="fixed">Fixed price</option>
-                  <option value="hourly">Hourly rate</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-sm font-semibold">Pay amount GBP</label>
-                <input
-                  value={payAmount}
-                  onChange={(event) => setPayAmount(event.target.value)}
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  className="mt-2 w-full rounded-2xl border border-black/10 px-4 py-3 outline-none"
-                  placeholder="Example: 90"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="text-sm font-semibold">Schedule summary</label>
-              <input
-                value={scheduleSummary}
-                onChange={(event) => setScheduleSummary(event.target.value)}
-                className="mt-2 w-full rounded-2xl border border-black/10 px-4 py-3 outline-none"
-                placeholder="Example: Saturday afternoon or complete within 3 days"
-              />
-            </div>
-
-            <div>
-              <label className="text-sm font-semibold">Requirements</label>
-              <textarea
-                value={requirements}
-                onChange={(event) => setRequirements(event.target.value)}
-                className="mt-2 min-h-32 w-full rounded-2xl border border-black/10 px-4 py-3 outline-none"
-                placeholder={"Enter one requirement per line\nExample: Confident speaking with guests"}
-              />
-            </div>
-
-            <button
-              type="button"
-              onClick={createGig}
-              disabled={loading}
-              className="w-full rounded-full bg-[#2f6f3e] px-5 py-3 font-semibold text-white disabled:opacity-60"
+            <a
+              href="/posted-gigs"
+              className="mt-6 inline-block rounded-full border border-black/10 px-5 py-3 font-semibold hover:bg-[#f6f8f4]"
             >
-              {loading ? "Posting..." : "Post gig"}
-            </button>
-          </div>
-        )}
+              View my posted gigs
+            </a>
+          </aside>
+        </div>
       </section>
     </main>
   );
