@@ -56,6 +56,12 @@ const dashboardCards = [
     action: "View contacts",
   },
   {
+    title: "Verification",
+    description: "Submit worker verification before payouts are released.",
+    href: "/verification",
+    action: "Submit verification",
+  },
+  {
     title: "Completion confirmations",
     description: "Confirm completed gigs before admin payout review.",
     href: "/completions",
