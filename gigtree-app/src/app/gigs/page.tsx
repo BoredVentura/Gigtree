@@ -1,55 +1,62 @@
-const gigs = [
-  {
-    id: 1,
-    title: "Event assistant needed",
-    category: "Events",
-    type: "In-person",
-    location: "Manchester",
-    pay: "£14/hr",
-    schedule: "Saturday, flexible hours",
-    trust: "Verification required before applying",
-    description:
-      "Help with guest check-in, setup, and general event support for a weekend community event.",
-  },
-  {
-    id: 2,
-    title: "Remote admin support",
-    category: "Admin",
-    type: "Online",
-    location: "Remote UK",
-    pay: "£90 fixed",
-    schedule: "Complete within 3 days",
-    trust: "Open to apply",
-    description:
-      "Support a small business with inbox sorting, spreadsheet cleanup, and basic document formatting.",
-  },
-  {
-    id: 3,
-    title: "Weekend stockroom help",
-    category: "Retail",
-    type: "In-person",
-    location: "Birmingham",
-    pay: "£12/hr",
-    schedule: "Saturday and Sunday",
-    trust: "Open to apply",
-    description:
-      "Assist with stockroom organisation, labelling, and moving light boxes for an independent retailer.",
-  },
-  {
-    id: 4,
-    title: "Design a simple flyer",
-    category: "Creative",
-    type: "Online",
-    location: "Remote UK",
-    pay: "£60 fixed",
-    schedule: "Due this week",
-    trust: "Open to apply",
-    description:
-      "Create a clean digital flyer for a local service business using supplied text and brand colours.",
-  },
-];
+import { supabase } from "@/lib/supabase";
 
-export default function GigsPage() {
+type Gig = {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  trust_level: "low" | "medium" | "high";
+  location_type: "online" | "in_person";
+  location_area: string | null;
+  pay_type: "hourly" | "fixed";
+  hourly_rate: number | null;
+  fixed_amount: number | null;
+  currency: string;
+  schedule_summary: string | null;
+};
+
+function formatPay(gig: Gig) {
+  if (gig.pay_type === "hourly" && gig.hourly_rate) {
+    return `£${gig.hourly_rate}/hr`;
+  }
+
+  if (gig.pay_type === "fixed" && gig.fixed_amount) {
+    return `£${gig.fixed_amount} fixed`;
+  }
+
+  return "Pay TBC";
+}
+
+function formatLocationType(type: Gig["location_type"]) {
+  return type === "in_person" ? "In-person" : "Online";
+}
+
+function formatTrustLevel(level: Gig["trust_level"]) {
+  if (level === "high") return "Verification required before applying";
+  if (level === "medium") return "Extra checks may be required";
+  return "Open to apply";
+}
+
+export default async function GigsPage() {
+  const { data: gigs, error } = await supabase
+    .from("gigs")
+    .select(
+      "id,title,description,category,trust_level,location_type,location_area,pay_type,hourly_rate,fixed_amount,currency,schedule_summary"
+    )
+    .eq("status", "open")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    return (
+      <main className="min-h-screen bg-[#f6f8f4] px-6 py-10 text-[#172014]">
+        <div className="mx-auto max-w-3xl rounded-3xl bg-white p-8 shadow-sm">
+          <h1 className="text-3xl font-bold">Could not load gigs</h1>
+          <p className="mt-3 text-[#42513c]">{error.message}</p>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-[#f6f8f4] text-[#172014]">
       <section className="mx-auto max-w-6xl px-6 py-8">
@@ -60,6 +67,9 @@ export default function GigsPage() {
           <div className="flex items-center gap-3 text-sm">
             <a href="/" className="hidden sm:inline hover:underline">
               Home
+            </a>
+            <a href="/dashboard" className="hidden sm:inline hover:underline">
+              Dashboard
             </a>
             <button className="rounded-full border border-[#172014]/20 px-4 py-2">
               Sign in
@@ -73,8 +83,7 @@ export default function GigsPage() {
             Find local and online opportunities across the UK.
           </h1>
           <p className="mt-5 max-w-2xl text-lg leading-8 text-[#42513c]">
-            Browse early Gigtree opportunities. Apply with your profile, then
-            Gigtree reviews applications and recommends the strongest matches.
+            These gigs are now loading from your Supabase database.
           </p>
         </div>
 
@@ -101,7 +110,7 @@ export default function GigsPage() {
         </div>
 
         <div className="grid gap-5">
-          {gigs.map((gig) => (
+          {(gigs ?? []).map((gig) => (
             <article
               key={gig.id}
               className="rounded-3xl border border-black/10 bg-white p-5 shadow-sm"
@@ -113,7 +122,7 @@ export default function GigsPage() {
                       {gig.category}
                     </span>
                     <span className="rounded-full bg-[#f6f8f4] px-3 py-1 font-medium">
-                      {gig.type}
+                      {formatLocationType(gig.location_type)}
                     </span>
                   </div>
 
@@ -122,21 +131,27 @@ export default function GigsPage() {
 
                   <div className="mt-4 grid gap-2 text-sm text-[#42513c] sm:grid-cols-3">
                     <p>
-                      <span className="font-semibold text-[#172014]">Location:</span>{" "}
-                      {gig.location}
+                      <span className="font-semibold text-[#172014]">
+                        Location:
+                      </span>{" "}
+                      {gig.location_area ?? "Remote UK"}
                     </p>
                     <p>
-                      <span className="font-semibold text-[#172014]">Pay:</span>{" "}
-                      {gig.pay}
+                      <span className="font-semibold text-[#172014]">
+                        Pay:
+                      </span>{" "}
+                      {formatPay(gig)}
                     </p>
                     <p>
-                      <span className="font-semibold text-[#172014]">Timing:</span>{" "}
-                      {gig.schedule}
+                      <span className="font-semibold text-[#172014]">
+                        Timing:
+                      </span>{" "}
+                      {gig.schedule_summary ?? "Flexible"}
                     </p>
                   </div>
 
                   <p className="mt-4 text-sm font-medium text-[#2f6f3e]">
-                    {gig.trust}
+                    {formatTrustLevel(gig.trust_level)}
                   </p>
                 </div>
 
