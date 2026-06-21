@@ -135,6 +135,11 @@ export default function Home() {
           </div>
         </div>
       </section>
-    </main>
+      <footer className="mx-auto flex max-w-6xl flex-wrap gap-4 px-6 pb-8 text-sm text-[#42513c]">
+    <a href="/terms" className="hover:underline">Terms</a>
+    <a href="/privacy" className="hover:underline">Privacy</a>
+    <a href="/safety" className="hover:underline">Safety</a>
+  </footer>
+</main>
   );
 }
