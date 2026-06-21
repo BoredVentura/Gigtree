@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 type VerificationRecord = {
@@ -24,36 +24,73 @@ function formatStatus(status: string) {
     .join(" ");
 }
 
+function statusInfo(status: string) {
+  switch (status) {
+    case "not_submitted":
+      return {
+        label: "Not submitted",
+        description: "Add your details and upload ID when you are ready.",
+        nextStep: "Submit verification before payout release.",
+      };
+    case "submitted":
+      return {
+        label: "Submitted",
+        description: "Your verification has been sent to admin for review.",
+        nextStep: "Wait for admin review. You can still update and resubmit if needed.",
+      };
+    case "needs_more_info":
+      return {
+        label: "Needs more info",
+        description: "Admin needs more information before approval.",
+        nextStep: "Update your details or ID document, then resubmit.",
+      };
+    case "approved":
+      return {
+        label: "Approved",
+        description: "Your worker verification has been approved.",
+        nextStep: "Eligible completed gig payments can now move toward payout release.",
+      };
+    case "rejected":
+      return {
+        label: "Rejected",
+        description: "Your verification was not approved.",
+        nextStep: "Review your details and contact Gigtree before resubmitting.",
+      };
+    default:
+      return {
+        label: formatStatus(status),
+        description: "Your verification status has changed.",
+        nextStep: "Check your details and continue if needed.",
+      };
+  }
+}
+
 export default function VerificationPage() {
+  const [userId, setUserId] = useState("");
   const [record, setRecord] = useState<VerificationRecord | null>(null);
-  const [message, setMessage] = useState("Loading verification...");
-  const [saving, setSaving] = useState(false);
-  const [ageConfirmed, setAgeConfirmed] = useState(false);
 
   const [fullLegalName, setFullLegalName] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
   const [addressLine, setAddressLine] = useState("");
-  const [idDocumentType, setIdDocumentType] = useState("passport");
-  const [idDocumentFile, setIdDocumentFile] = useState<File | null>(null);
+  const [idDocumentType, setIdDocumentType] = useState("Passport");
+  const [idDocumentFilePath, setIdDocumentFilePath] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
 
-  async function loadRecord() {
+  const [message, setMessage] = useState("Loading verification...");
+  const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+
+  async function loadVerification() {
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
     if (!user) {
-      setMessage("Please sign in to submit verification.");
+      setMessage("Please sign in to submit worker verification.");
       return;
     }
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("age_confirmed")
-      .eq("id", user.id)
-      .single();
-
-    setAgeConfirmed(Boolean(profile?.age_confirmed));
+    setUserId(user.id);
 
     const { data, error } = await supabase
       .from("verification_records")
@@ -69,131 +106,83 @@ export default function VerificationPage() {
     }
 
     if (data) {
-      const verification = data as VerificationRecord;
-      setRecord(verification);
-      setFullLegalName(verification.full_legal_name ?? "");
-      setDateOfBirth(verification.date_of_birth ?? "");
-      setAddressLine(verification.address_line ?? "");
-      setIdDocumentType(verification.id_document_type ?? "passport");
-      setNotes(verification.notes ?? "");
+      const loaded = data as VerificationRecord;
+      setRecord(loaded);
+      setFullLegalName(loaded.full_legal_name ?? "");
+      setDateOfBirth(loaded.date_of_birth ?? "");
+      setAddressLine(loaded.address_line ?? "");
+      setIdDocumentType(loaded.id_document_type ?? "Passport");
+      setIdDocumentFilePath(loaded.id_document_file_path);
+      setNotes(loaded.notes ?? "");
     }
 
     setMessage("");
   }
 
   useEffect(() => {
-    loadRecord();
+    loadVerification();
   }, []);
+
+  async function uploadDocument(event: ChangeEvent<HTMLInputElement>) {
+    if (!userId) {
+      setMessage("Please sign in first.");
+      return;
+    }
+
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    setMessage("");
+
+    const fileExt = file.name.split(".").pop();
+    const filePath = `${userId}/verification-${Date.now()}.${fileExt}`;
+
+    const { error } = await supabase.storage
+      .from("verification-documents")
+      .upload(filePath, file, { upsert: true });
+
+    if (error) {
+      setMessage(error.message);
+      setUploading(false);
+      return;
+    }
+
+    setIdDocumentFilePath(filePath);
+    setMessage("ID document uploaded. Submit verification when ready.");
+    setUploading(false);
+  }
 
   async function submitVerification(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (!userId) {
+      setMessage("Please sign in first.");
+      return;
+    }
+
+    if (!fullLegalName || !dateOfBirth || !addressLine || !idDocumentFilePath) {
+      setMessage("Please add your legal name, date of birth, address, and ID document.");
+      return;
+    }
+
     setSaving(true);
     setMessage("");
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      setMessage("Please sign in.");
-      setSaving(false);
-      return;
-    }
-
-    const { data: ageProfile, error: ageProfileError } = await supabase
-      .from("profiles")
-      .select("age_confirmed")
-      .eq("id", user.id)
-      .single();
-
-    if (ageProfileError) {
-      setMessage(ageProfileError.message);
-      setSaving(false);
-      return;
-    }
-
-    if (!ageProfile?.age_confirmed) {
-      setMessage("You must confirm you are 18 or over before submitting verification.");
-      setSaving(false);
-      return;
-    }
-
-    const { data: ageProfile, error: ageProfileError } = await supabase
-      .from("profiles")
-      .select("age_confirmed")
-      .eq("id", user.id)
-      .single();
-
-    if (ageProfileError) {
-      setMessage(ageProfileError.message);
-      setSaving(false);
-      return;
-    }
-
-    if (!ageProfile?.age_confirmed) {
-      setMessage("You must confirm you are 18 or over in your profile before submitting verification.");
-      setSaving(false);
-      return;
-    }
-
-    if (!fullLegalName || !dateOfBirth || !addressLine || !idDocumentType) {
-      setMessage("Please complete all required fields.");
-      setSaving(false);
-      return;
-    }
-
-    if (!record?.id_document_file_path && !idDocumentFile) {
-      setMessage("Please upload an ID document.");
-      setSaving(false);
-      return;
-    }
-
-    let uploadedFilePath = record?.id_document_file_path ?? null;
-
-    if (idDocumentFile) {
-      const safeFileName = idDocumentFile.name.replace(/[^a-zA-Z0-9.-]/g, "-");
-      const filePath = `${user.id}/${Date.now()}-${safeFileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from("verification-documents")
-        .upload(filePath, idDocumentFile, {
-          cacheControl: "3600",
-          upsert: true,
-        });
-
-      if (uploadError) {
-        setMessage(uploadError.message);
-        setSaving(false);
-        return;
-      }
-
-      uploadedFilePath = filePath;
-    }
-
-    const payload = {
-      user_id: user.id,
-      full_legal_name: fullLegalName,
-      date_of_birth: dateOfBirth,
-      address_line: addressLine,
-      id_document_type: idDocumentType,
-      id_document_file_path: uploadedFilePath,
-      notes,
-      status: "submitted",
-      submitted_at: new Date().toISOString(),
-    };
-
-    let error;
-
-    if (record?.id) {
-      const result = await supabase
-        .from("verification_records")
-        .update(payload)
-        .eq("id", record.id);
-      error = result.error;
-    } else {
-      const result = await supabase.from("verification_records").insert(payload);
-      error = result.error;
-    }
+    const { error } = await supabase.from("verification_records").upsert(
+      {
+        user_id: userId,
+        full_legal_name: fullLegalName,
+        date_of_birth: dateOfBirth,
+        address_line: addressLine,
+        id_document_type: idDocumentType,
+        id_document_file_path: idDocumentFilePath,
+        notes: notes || null,
+        status: "submitted",
+        submitted_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id" }
+    );
 
     if (error) {
       setMessage(error.message);
@@ -201,40 +190,75 @@ export default function VerificationPage() {
       return;
     }
 
-    await loadRecord();
-    setIdDocumentFile(null);
-    setMessage("Verification and ID document submitted for admin review.");
+    await loadVerification();
+    setMessage("Verification submitted. Admin will review it.");
     setSaving(false);
   }
 
-  const locked = record?.status === "approved";
+  const currentStatus = record?.status ?? "not_submitted";
+  const info = statusInfo(currentStatus);
 
   return (
-    <main className="min-h-screen bg-[#f6f8f4] text-[#172014]">
-      <section className="mx-auto max-w-4xl px-6 py-8">
-        <nav className="flex items-center justify-between">
-          <a href="/" className="text-2xl font-bold tracking-tight">
-            Gigtree
+    <main className="min-h-screen bg-[#fbfff6] text-[#142014]">
+      <section className="mx-auto max-w-7xl px-6 py-8">
+        <nav className="flex flex-wrap items-center justify-between gap-4">
+          <a href="/" className="flex items-center gap-3">
+            <span className="grid h-11 w-11 place-items-center rounded-2xl bg-[#2f6f3e] text-xl text-white shadow-lg shadow-[#2f6f3e]/20">
+              ✦
+            </span>
+            <span className="text-2xl font-black tracking-tight">Gigtree</span>
           </a>
-          <a href="/dashboard" className="text-sm hover:underline">
-            Dashboard
-          </a>
+
+          <div className="flex flex-wrap items-center gap-3 text-sm font-semibold">
+            <a href="/dashboard" className="rounded-full px-4 py-2 hover:bg-white">
+              Dashboard
+            </a>
+            <a href="/profile" className="rounded-full px-4 py-2 hover:bg-white">
+              Profile
+            </a>
+            <a href="/payments" className="rounded-full px-4 py-2 hover:bg-white">
+              Payments
+            </a>
+          </div>
         </nav>
 
-        <div className="py-12">
-          <p className="font-semibold text-[#2f6f3e]">Worker verification</p>
-          <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-5xl">
-            Submit verification.
-          </h1>
-          <p className="mt-5 text-lg leading-8 text-[#42513c]">
-            Verification is required before Gigtree releases worker payouts.
-            Upload a passport, driving licence, national ID, or other accepted
-            document for admin review.
-          </p>
+        <div className="grid gap-8 py-12 lg:grid-cols-[1fr_360px]">
+          <div>
+            <p className="font-semibold text-[#2f6f3e]">Worker verification</p>
+            <h1 className="mt-3 max-w-4xl text-5xl font-black leading-tight tracking-tight">
+              Verify your identity before payout release.
+            </h1>
+            <p className="mt-5 max-w-3xl text-lg leading-8 text-[#42513c]">
+              Verification helps Gigtree protect workers, posters, and payments.
+              You can apply for gigs before approval, but payout release may
+              require verified ID.
+            </p>
+          </div>
+
+          <aside className="h-fit rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-black/10">
+            <div className="flex flex-wrap gap-2 text-sm">
+              <span className="rounded-full bg-[#e8f0e4] px-3 py-1 font-bold text-[#2f6f3e]">
+                {info.label}
+              </span>
+              {record?.submitted_at && (
+                <span className="rounded-full bg-[#f6f8f4] px-3 py-1 font-bold text-[#42513c]">
+                  Submitted {new Date(record.submitted_at).toLocaleDateString()}
+                </span>
+              )}
+            </div>
+
+            <h2 className="mt-5 text-2xl font-black">Current status</h2>
+            <p className="mt-3 leading-7 text-[#42513c]">{info.description}</p>
+
+            <div className="mt-5 rounded-2xl bg-[#e8f0e4] p-4">
+              <p className="font-semibold text-[#2f6f3e]">Next step</p>
+              <p className="mt-2 text-sm text-[#42513c]">{info.nextStep}</p>
+            </div>
+          </aside>
         </div>
 
         {message && (
-          <div className="mb-6 rounded-3xl bg-white p-5 text-[#42513c] shadow-sm">
+          <div className="mb-6 rounded-3xl bg-white p-5 text-[#42513c] shadow-sm ring-1 ring-black/10">
             {message}
             {message.includes("sign in") && (
               <a
@@ -247,132 +271,152 @@ export default function VerificationPage() {
           </div>
         )}
 
-        {record && (
-          <div className="mb-6 rounded-3xl bg-white p-5 shadow-sm">
-            <p className="text-sm font-semibold text-[#42513c]">
-              Current status
-            </p>
-            <p className="mt-1 text-2xl font-bold text-[#2f6f3e]">
-              {formatStatus(record.status)}
-            </p>
-            {record.id_document_file_path && (
-              <p className="mt-3 text-sm text-[#42513c]">
-                ID document uploaded.
-              </p>
-            )}
-          </div>
+        {userId && (
+          <form onSubmit={submitVerification} className="grid gap-8 lg:grid-cols-[1fr_360px]">
+            <section className="grid gap-6">
+              <div className="rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-black/10">
+                <p className="font-semibold text-[#2f6f3e]">Step 1</p>
+                <h2 className="mt-1 text-3xl font-black">Legal details</h2>
+                <p className="mt-2 text-[#42513c]">
+                  Use the same details shown on your ID document.
+                </p>
+
+                <div className="mt-6 grid gap-5">
+                  <label>
+                    <span className="text-sm font-semibold">Full legal name</span>
+                    <input
+                      value={fullLegalName}
+                      onChange={(event) => setFullLegalName(event.target.value)}
+                      className="mt-2 w-full rounded-2xl border border-black/10 bg-[#fbfff6] p-4 outline-none focus:border-[#2f6f3e]"
+                      placeholder="Full legal name"
+                    />
+                  </label>
+
+                  <label>
+                    <span className="text-sm font-semibold">Date of birth</span>
+                    <input
+                      type="date"
+                      value={dateOfBirth}
+                      onChange={(event) => setDateOfBirth(event.target.value)}
+                      className="mt-2 w-full rounded-2xl border border-black/10 bg-[#fbfff6] p-4 outline-none focus:border-[#2f6f3e]"
+                    />
+                  </label>
+
+                  <label>
+                    <span className="text-sm font-semibold">Address</span>
+                    <textarea
+                      value={addressLine}
+                      onChange={(event) => setAddressLine(event.target.value)}
+                      className="mt-2 min-h-28 w-full rounded-2xl border border-black/10 bg-[#fbfff6] p-4 outline-none focus:border-[#2f6f3e]"
+                      placeholder="Your current address"
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div className="rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-black/10">
+                <p className="font-semibold text-[#2f6f3e]">Step 2</p>
+                <h2 className="mt-1 text-3xl font-black">Upload ID</h2>
+                <p className="mt-2 text-[#42513c]">
+                  Upload a clear image or PDF of your ID. This is private to
+                  admin review.
+                </p>
+
+                <div className="mt-6 grid gap-5">
+                  <label>
+                    <span className="text-sm font-semibold">Document type</span>
+                    <select
+                      value={idDocumentType}
+                      onChange={(event) => setIdDocumentType(event.target.value)}
+                      className="mt-2 w-full rounded-2xl border border-black/10 bg-[#fbfff6] p-4 outline-none focus:border-[#2f6f3e]"
+                    >
+                      <option>Passport</option>
+                      <option>Driving licence</option>
+                      <option>National ID</option>
+                      <option>Other</option>
+                    </select>
+                  </label>
+
+                  <div className="rounded-3xl bg-[#f6f8f4] p-5">
+                    <input
+                      type="file"
+                      accept=".pdf,.png,.jpg,.jpeg"
+                      onChange={uploadDocument}
+                      disabled={uploading}
+                      className="w-full"
+                    />
+
+                    <p className="mt-4 text-sm text-[#42513c]">
+                      {idDocumentFilePath
+                        ? "ID document uploaded and ready to submit."
+                        : "No ID document uploaded yet."}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-black/10">
+                <p className="font-semibold text-[#2f6f3e]">Step 3</p>
+                <h2 className="mt-1 text-3xl font-black">Extra notes</h2>
+                <p className="mt-2 text-[#42513c]">
+                  Add anything admin should know when reviewing your ID.
+                </p>
+
+                <textarea
+                  value={notes}
+                  onChange={(event) => setNotes(event.target.value)}
+                  className="mt-6 min-h-32 w-full rounded-2xl border border-black/10 bg-[#fbfff6] p-4 outline-none focus:border-[#2f6f3e]"
+                  placeholder="Optional notes"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={saving}
+                className="rounded-full bg-[#2f6f3e] px-7 py-4 font-bold text-white shadow-xl shadow-[#2f6f3e]/20 disabled:opacity-50"
+              >
+                {saving ? "Submitting..." : "Submit verification"}
+              </button>
+            </section>
+
+            <aside className="grid h-fit gap-5">
+              <div className="rounded-[2rem] bg-[#142014] p-6 text-white shadow-sm">
+                <p className="font-semibold text-[#b9f36b]">Why this matters</p>
+                <h2 className="mt-2 text-2xl font-black">
+                  Payouts need trust.
+                </h2>
+                <p className="mt-4 leading-7 text-white/70">
+                  Verification helps Gigtree confirm that payouts are going to
+                  the right adult worker.
+                </p>
+              </div>
+
+              <div className="rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-black/10">
+                <h2 className="text-2xl font-black">What happens next</h2>
+                <div className="mt-4 grid gap-3 text-sm text-[#42513c]">
+                  <p className="rounded-2xl bg-[#f6f8f4] p-4">
+                    Admin reviews your submitted details and ID document.
+                  </p>
+                  <p className="rounded-2xl bg-[#f6f8f4] p-4">
+                    You may be asked for more information if something is unclear.
+                  </p>
+                  <p className="rounded-2xl bg-[#f6f8f4] p-4">
+                    Once approved, eligible completed gig payments can move
+                    toward release.
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-[2rem] bg-[#fff7e8] p-6 shadow-sm ring-1 ring-black/10">
+                <h2 className="text-2xl font-black">Privacy note</h2>
+                <p className="mt-3 leading-7 text-[#42513c]">
+                  Your ID document is for admin verification only. Posters do
+                  not see your uploaded ID.
+                </p>
+              </div>
+            </aside>
+          </form>
         )}
-
-        {!ageConfirmed && (
-          <div className="mb-6 rounded-3xl border border-[#d28b28]/30 bg-[#fff7e8] p-6 shadow-sm">
-            <h2 className="text-2xl font-bold">18+ confirmation required</h2>
-            <p className="mt-3 text-[#42513c]">
-              Verification is blocked until you confirm you are 18 or over in your profile.
-            </p>
-            <a
-              href="/profile"
-              className="mt-5 inline-block rounded-full bg-[#2f6f3e] px-5 py-3 font-semibold text-white"
-            >
-              Go to profile
-            </a>
-          </div>
-        )}
-
-        <form
-          onSubmit={submitVerification}
-          className="grid gap-5 rounded-3xl bg-white p-6 shadow-sm"
-        >
-          <label>
-            <span className="text-sm font-semibold">Full legal name</span>
-            <input
-              value={fullLegalName}
-              onChange={(event) => setFullLegalName(event.target.value)}
-              disabled={locked}
-              className="mt-2 w-full rounded-2xl border border-black/10 p-4 outline-none focus:border-[#2f6f3e] disabled:bg-black/5"
-              placeholder="Your full legal name"
-            />
-          </label>
-
-          <label>
-            <span className="text-sm font-semibold">Date of birth</span>
-            <input
-              type="date"
-              value={dateOfBirth}
-              onChange={(event) => setDateOfBirth(event.target.value)}
-              disabled={locked}
-              className="mt-2 w-full rounded-2xl border border-black/10 p-4 outline-none focus:border-[#2f6f3e] disabled:bg-black/5"
-            />
-          </label>
-
-          <label>
-            <span className="text-sm font-semibold">Address</span>
-            <textarea
-              value={addressLine}
-              onChange={(event) => setAddressLine(event.target.value)}
-              disabled={locked}
-              className="mt-2 min-h-28 w-full rounded-2xl border border-black/10 p-4 outline-none focus:border-[#2f6f3e] disabled:bg-black/5"
-              placeholder="Your current address"
-            />
-          </label>
-
-          <label>
-            <span className="text-sm font-semibold">ID document type</span>
-            <select
-              value={idDocumentType}
-              onChange={(event) => setIdDocumentType(event.target.value)}
-              disabled={locked}
-              className="mt-2 w-full rounded-2xl border border-black/10 p-4 outline-none focus:border-[#2f6f3e] disabled:bg-black/5"
-            >
-              <option value="passport">Passport</option>
-              <option value="driving_licence">Driving licence</option>
-              <option value="national_id">National ID</option>
-              <option value="other">Other</option>
-            </select>
-          </label>
-
-          <label>
-            <span className="text-sm font-semibold">
-              Upload ID document
-            </span>
-            <input
-              type="file"
-              accept=".pdf,.png,.jpg,.jpeg"
-              disabled={locked}
-              onChange={(event) =>
-                setIdDocumentFile(event.target.files?.[0] ?? null)
-              }
-              className="mt-2 w-full rounded-2xl border border-black/10 bg-white p-4 outline-none focus:border-[#2f6f3e] disabled:bg-black/5"
-            />
-            <p className="mt-2 text-sm text-[#42513c]">
-              Accepted files: PDF, PNG, JPG, JPEG.
-            </p>
-          </label>
-
-          <label>
-            <span className="text-sm font-semibold">Notes</span>
-            <textarea
-              value={notes}
-              onChange={(event) => setNotes(event.target.value)}
-              disabled={locked}
-              className="mt-2 min-h-28 w-full rounded-2xl border border-black/10 p-4 outline-none focus:border-[#2f6f3e] disabled:bg-black/5"
-              placeholder="Optional notes for admin"
-            />
-          </label>
-
-          {locked ? (
-            <div className="rounded-2xl bg-[#e8f0e4] p-4 font-semibold text-[#2f6f3e]">
-              Your verification has been approved.
-            </div>
-          ) : (
-            <button
-              type="submit"
-              disabled={saving || !ageConfirmed}
-              className="rounded-full bg-[#2f6f3e] px-6 py-4 font-semibold text-white disabled:opacity-50"
-            >
-              {saving ? "Submitting..." : "Submit verification"}
-            </button>
-          )}
-        </form>
       </section>
     </main>
   );
