@@ -1,145 +1,226 @@
-const featuredGigs = [
-  {
-    title: "Event assistant needed",
-    type: "In-person",
-    location: "Manchester",
-    pay: "£14/hr",
-    trust: "Verification required",
-  },
-  {
-    title: "Remote admin support",
-    type: "Online",
-    location: "Remote UK",
-    pay: "£90 fixed",
-    trust: "Open to apply",
-  },
-  {
-    title: "Weekend stockroom help",
-    type: "In-person",
-    location: "Birmingham",
-    pay: "£12/hr",
-    trust: "Open to apply",
-  },
-];
-
 export default function Home() {
   return (
-    <main className="min-h-screen bg-[#f6f8f4] text-[#172014]">
-      <section className="mx-auto flex min-h-screen max-w-6xl flex-col px-6 py-8">
-        <nav className="flex items-center justify-between">
-          <div className="text-2xl font-bold tracking-tight">Gigtree</div>
-          <div className="flex items-center gap-3 text-sm">
-            <a href="/gigs" className="hidden sm:inline hover:underline">Browse gigs</a>
-            <a href="#how" className="hidden sm:inline hover:underline">How it works</a>
-            <a href="/login" className="rounded-full border border-[#172014]/20 px-4 py-2">Sign in</a>
-          </div>
-        </nav>
+    <main className="min-h-screen overflow-hidden bg-[#fbfff6] text-[#142014]">
+      <section className="relative">
+        <div className="absolute -left-24 top-20 h-72 w-72 rounded-full bg-[#b9f36b]/30 blur-3xl" />
+        <div className="absolute right-0 top-0 h-96 w-96 rounded-full bg-[#7ed957]/20 blur-3xl" />
+        <div className="absolute bottom-0 right-1/4 h-72 w-72 rounded-full bg-[#ffe08a]/30 blur-3xl" />
 
-        <div className="grid flex-1 items-center gap-10 py-16 lg:grid-cols-[1.1fr_0.9fr]">
-          <div>
-            <div className="mb-5 inline-flex rounded-full bg-white px-4 py-2 text-sm font-medium shadow-sm">
-              UK local and online gigs
-            </div>
+        <div className="relative mx-auto max-w-7xl px-6 py-8">
+          <nav className="flex flex-wrap items-center justify-between gap-4">
+            <a href="/" className="flex items-center gap-3">
+              <span className="grid h-11 w-11 place-items-center rounded-2xl bg-[#2f6f3e] text-xl text-white shadow-lg shadow-[#2f6f3e]/20">
+                ✦
+              </span>
+              <span className="text-2xl font-black tracking-tight">Gigtree</span>
+            </a>
 
-            <h1 className="max-w-3xl text-5xl font-black leading-tight tracking-tight sm:text-6xl">
-              Find flexible gigs. Grow with Gigtree.
-            </h1>
-
-            <p className="mt-6 max-w-2xl text-lg leading-8 text-[#42513c]">
-              Gigtree connects workers with local and online opportunities through a trusted, admin-reviewed process.
-              Apply with your profile, get recommended for the right gigs, and get paid securely.
-            </p>
-
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <a href="/gigs" className="rounded-full bg-[#2f6f3e] px-6 py-3 text-center font-semibold text-white shadow-sm">
+            <div className="flex flex-wrap items-center gap-3 text-sm font-semibold">
+              <a href="/gigs" className="rounded-full px-4 py-2 hover:bg-white">
                 Browse gigs
               </a>
-              <a href="#post" className="rounded-full bg-white px-6 py-3 text-center font-semibold shadow-sm">
-                Post a gig
+              <a href="#how-it-works" className="rounded-full px-4 py-2 hover:bg-white">
+                How it works
               </a>
+              <a
+                href="/login"
+                className="rounded-full bg-white px-5 py-2.5 shadow-sm ring-1 ring-black/10 hover:bg-[#f6f8f4]"
+              >
+                Sign in
+              </a>
+            </div>
+          </nav>
+
+          <div className="grid items-center gap-12 py-20 lg:grid-cols-[1fr_460px] lg:py-28">
+            <div>
+              <div className="mb-6 inline-flex rounded-full bg-white px-4 py-2 text-sm font-bold text-[#2f6f3e] shadow-sm ring-1 ring-black/10">
+                UK local + online gigs, reviewed by humans
+              </div>
+
+              <h1 className="max-w-4xl text-5xl font-black leading-[0.95] tracking-tight sm:text-7xl">
+                Find good gigs.
+                <span className="block text-[#2f6f3e]">Get picked with trust.</span>
+              </h1>
+
+              <p className="mt-7 max-w-2xl text-lg leading-8 text-[#465445]">
+                Gigtree helps workers apply privately for flexible local and
+                online work. Admins review applicants, recommend trusted
+                candidates, and keep payments protected until the job is done.
+              </p>
+
+              <div className="mt-8 flex flex-wrap gap-3">
+                <a
+                  href="/gigs"
+                  className="rounded-full bg-[#2f6f3e] px-7 py-4 font-bold text-white shadow-xl shadow-[#2f6f3e]/20 hover:bg-[#255a33]"
+                >
+                  Browse gigs
+                </a>
+                <a
+                  href="/post-request"
+                  className="rounded-full bg-white px-7 py-4 font-bold shadow-sm ring-1 ring-black/10 hover:bg-[#f6f8f4]"
+                >
+                  Post a gig
+                </a>
+              </div>
+
+              <div className="mt-8 flex flex-wrap gap-2 text-sm font-semibold text-[#42513c]">
+                <span className="rounded-full bg-white px-4 py-2 shadow-sm ring-1 ring-black/10">
+                  Home help
+                </span>
+                <span className="rounded-full bg-white px-4 py-2 shadow-sm ring-1 ring-black/10">
+                  Events
+                </span>
+                <span className="rounded-full bg-white px-4 py-2 shadow-sm ring-1 ring-black/10">
+                  Admin
+                </span>
+                <span className="rounded-full bg-white px-4 py-2 shadow-sm ring-1 ring-black/10">
+                  Design
+                </span>
+                <span className="rounded-full bg-white px-4 py-2 shadow-sm ring-1 ring-black/10">
+                  Remote work
+                </span>
+              </div>
+            </div>
+
+            <div className="relative">
+              <div className="absolute -left-6 -top-6 h-full w-full rounded-[2rem] bg-[#2f6f3e]/10" />
+              <div className="relative rounded-[2rem] bg-white p-5 shadow-2xl shadow-black/10 ring-1 ring-black/10">
+                <div className="rounded-[1.5rem] bg-[#142014] p-6 text-white">
+                  <p className="text-sm font-bold text-[#b9f36b]">
+                    Live marketplace flow
+                  </p>
+                  <h2 className="mt-3 text-3xl font-black">
+                    Safer matching, without the awkward cold start.
+                  </h2>
+                  <p className="mt-4 leading-7 text-white/75">
+                    Workers apply once with a profile. Posters get anonymous
+                    admin-written summaries before choosing.
+                  </p>
+                </div>
+
+                <div className="mt-4 grid gap-3">
+                  <div className="rounded-3xl border border-black/10 bg-[#fbfff6] p-5">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="font-bold">Candidate A recommended</p>
+                        <p className="mt-1 text-sm text-[#42513c]">
+                          Local, available Sunday, strong experience.
+                        </p>
+                      </div>
+                      <span className="rounded-full bg-[#b9f36b]/40 px-3 py-1 text-xs font-black text-[#2f6f3e]">
+                        Reviewed
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="rounded-3xl border border-black/10 bg-white p-5">
+                    <p className="font-bold">Payment held safely</p>
+                    <div className="mt-3 h-3 overflow-hidden rounded-full bg-[#e8f0e4]">
+                      <div className="h-full w-3/4 rounded-full bg-[#2f6f3e]" />
+                    </div>
+                    <p className="mt-2 text-sm text-[#42513c]">
+                      Released after completion + verification.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-3xl bg-[#fff7e8] p-5">
+                      <p className="text-2xl font-black">18+</p>
+                      <p className="mt-1 text-sm text-[#42513c]">
+                        Adults only
+                      </p>
+                    </div>
+                    <div className="rounded-3xl bg-[#e8f0e4] p-5">
+                      <p className="text-2xl font-black">Masked</p>
+                      <p className="mt-1 text-sm text-[#42513c]">
+                        Contact controlled
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
-          <div className="rounded-[2rem] bg-white p-5 shadow-xl">
-            <div className="rounded-[1.5rem] bg-[#e8f0e4] p-5">
-              <p className="text-sm font-semibold text-[#2f6f3e]">Managed marketplace</p>
-              <h2 className="mt-3 text-3xl font-bold">Safer matching for flexible work</h2>
-              <p className="mt-4 text-[#42513c]">
-                Admins review applicants, recommend anonymous candidates, and control verification before payouts are released.
+          <section
+            id="how-it-works"
+            className="grid gap-5 pb-16 md:grid-cols-3"
+          >
+            <div className="rounded-[2rem] bg-white p-7 shadow-sm ring-1 ring-black/10">
+              <div className="mb-5 grid h-12 w-12 place-items-center rounded-2xl bg-[#e8f0e4] text-xl">
+                1
+              </div>
+              <h3 className="text-2xl font-black">Build your profile</h3>
+              <p className="mt-3 leading-7 text-[#42513c]">
+                Add skills, availability, experience, and CV privately.
               </p>
             </div>
 
-            <div className="mt-5 space-y-3">
-              <div className="rounded-2xl border border-black/10 p-4">
-                <p className="font-semibold">Verified payout flow</p>
-                <p className="text-sm text-[#42513c]">Payment is held until completion is confirmed.</p>
+            <div className="rounded-[2rem] bg-white p-7 shadow-sm ring-1 ring-black/10">
+              <div className="mb-5 grid h-12 w-12 place-items-center rounded-2xl bg-[#e8f0e4] text-xl">
+                2
               </div>
-              <div className="rounded-2xl border border-black/10 p-4">
-                <p className="font-semibold">Anonymous recommendations</p>
-                <p className="text-sm text-[#42513c]">Posters see admin-written summaries before choosing.</p>
+              <h3 className="text-2xl font-black">Apply privately</h3>
+              <p className="mt-3 leading-7 text-[#42513c]">
+                Admins review applications and recommend the best fits.
+              </p>
+            </div>
+
+            <div className="rounded-[2rem] bg-white p-7 shadow-sm ring-1 ring-black/10">
+              <div className="mb-5 grid h-12 w-12 place-items-center rounded-2xl bg-[#e8f0e4] text-xl">
+                3
               </div>
+              <h3 className="text-2xl font-black">Work and get paid</h3>
+              <p className="mt-3 leading-7 text-[#42513c]">
+                Payment stays protected until completion and verification.
+              </p>
             </div>
+          </section>
+        </div>
+      </section>
+
+      <section className="bg-[#142014] px-6 py-16 text-white">
+        <div className="mx-auto grid max-w-7xl gap-10 md:grid-cols-[1fr_1fr]">
+          <div>
+            <p className="font-bold text-[#b9f36b]">For workers</p>
+            <h2 className="mt-3 text-4xl font-black">
+              Apply once. Be matched better.
+            </h2>
+            <p className="mt-5 leading-8 text-white/70">
+              Instead of sending your details everywhere, create a fuller
+              profile and let Gigtree recommend you when you are a good fit.
+            </p>
+          </div>
+
+          <div>
+            <p className="font-bold text-[#b9f36b]">For posters</p>
+            <h2 className="mt-3 text-4xl font-black">
+              Get trusted candidates, not a messy inbox.
+            </h2>
+            <p className="mt-5 leading-8 text-white/70">
+              Posters request access, post gigs after approval, and receive
+              anonymous candidate summaries before choosing.
+            </p>
           </div>
         </div>
       </section>
 
-      <section id="gigs" className="bg-white px-6 py-16">
-        <div className="mx-auto max-w-6xl">
-          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-            <div>
-              <p className="font-semibold text-[#2f6f3e]">Featured gigs</p>
-              <h2 className="mt-2 text-3xl font-bold">Browse early opportunities</h2>
-            </div>
-            <button className="rounded-full border border-black/10 px-5 py-3 font-semibold">
-              View all gigs
-            </button>
-          </div>
-
-          <div className="mt-8 grid gap-4 md:grid-cols-3">
-            {featuredGigs.map((gig) => (
-              <article key={gig.title} className="rounded-3xl border border-black/10 bg-[#f6f8f4] p-5">
-                <div className="mb-4 flex items-center justify-between text-sm">
-                  <span className="rounded-full bg-white px-3 py-1 font-medium">{gig.type}</span>
-                  <span>{gig.pay}</span>
-                </div>
-                <h3 className="text-xl font-bold">{gig.title}</h3>
-                <p className="mt-2 text-[#42513c]">{gig.location}</p>
-                <p className="mt-4 text-sm font-medium text-[#2f6f3e]">{gig.trust}</p>
-              </article>
-            ))}
+      <footer className="bg-[#fbfff6] px-6 py-8">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 text-sm text-[#42513c]">
+          <p>© Gigtree</p>
+          <div className="flex gap-4">
+            <a href="/terms" className="hover:underline">
+              Terms
+            </a>
+            <a href="/privacy" className="hover:underline">
+              Privacy
+            </a>
+            <a href="/safety" className="hover:underline">
+              Safety
+            </a>
           </div>
         </div>
-      </section>
-
-      <section id="how" className="px-6 py-16">
-        <div className="mx-auto max-w-6xl">
-          <p className="font-semibold text-[#2f6f3e]">How it works</p>
-          <h2 className="mt-2 text-3xl font-bold">Simple, trusted, admin-managed</h2>
-
-          <div className="mt-8 grid gap-4 md:grid-cols-3">
-            <div className="rounded-3xl bg-white p-6 shadow-sm">
-              <p className="text-sm font-bold text-[#2f6f3e]">01</p>
-              <h3 className="mt-3 text-xl font-bold">Workers apply</h3>
-              <p className="mt-2 text-[#42513c]">Workers create profiles, upload CVs, and apply with structured details.</p>
-            </div>
-            <div className="rounded-3xl bg-white p-6 shadow-sm">
-              <p className="text-sm font-bold text-[#2f6f3e]">02</p>
-              <h3 className="mt-3 text-xl font-bold">Admin recommends</h3>
-              <p className="mt-2 text-[#42513c]">Gigtree reviews applicants and sends anonymous candidate summaries to posters.</p>
-            </div>
-            <div className="rounded-3xl bg-white p-6 shadow-sm">
-              <p className="text-sm font-bold text-[#2f6f3e]">03</p>
-              <h3 className="mt-3 text-xl font-bold">Payment is released</h3>
-              <p className="mt-2 text-[#42513c]">Funds are released after completion confirmation and required verification.</p>
-            </div>
-          </div>
-        </div>
-      </section>
-      <footer className="mx-auto flex max-w-6xl flex-wrap gap-4 px-6 pb-8 text-sm text-[#42513c]">
-    <a href="/terms" className="hover:underline">Terms</a>
-    <a href="/privacy" className="hover:underline">Privacy</a>
-    <a href="/safety" className="hover:underline">Safety</a>
-  </footer>
-</main>
+      </footer>
+    </main>
   );
 }
