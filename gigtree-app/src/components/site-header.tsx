@@ -17,30 +17,40 @@ const userLinks = [
 ];
 
 export function SiteHeader({ active }: SiteHeaderProps) {
+  const [isSignedIn, setIsSignedIn] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  useEffect(() => {
-    async function loadAdminStatus() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+  async function loadUser() {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-      if (!user) {
-        setIsAdmin(false);
-        return;
-      }
+    setIsSignedIn(Boolean(user));
 
-      const { data } = await supabase
-        .from("profiles")
-        .select("is_admin")
-        .eq("id", user.id)
-        .single();
-
-      setIsAdmin(Boolean(data?.is_admin));
+    if (!user) {
+      setIsAdmin(false);
+      return;
     }
 
-    loadAdminStatus();
+    const { data } = await supabase
+      .from("profiles")
+      .select("is_admin")
+      .eq("id", user.id)
+      .single();
+
+    setIsAdmin(Boolean(data?.is_admin));
+  }
+
+  useEffect(() => {
+    loadUser();
   }, []);
+
+  async function signOut() {
+    await supabase.auth.signOut();
+    setIsSignedIn(false);
+    setIsAdmin(false);
+    window.location.href = "/";
+  }
 
   const links = isAdmin
     ? [...userLinks, { label: "Admin", href: "/admin", key: "admin" }]
@@ -56,19 +66,39 @@ export function SiteHeader({ active }: SiteHeaderProps) {
       </Link>
 
       <div className="flex flex-wrap items-center gap-2 text-sm font-semibold">
-        {links.map((link) => (
+        {isSignedIn &&
+          links.map((link) => (
+            <Link
+              key={link.key}
+              href={link.href}
+              className={`rounded-full px-4 py-2 ${
+                active === link.key
+                  ? "bg-white shadow-sm ring-1 ring-black/10"
+                  : "hover:bg-white"
+              }`}
+            >
+              {link.label}
+            </Link>
+          ))}
+
+        {!isSignedIn && (
           <Link
-            key={link.key}
-            href={link.href}
-            className={`rounded-full px-4 py-2 ${
-              active === link.key
-                ? "bg-white shadow-sm ring-1 ring-black/10"
-                : "hover:bg-white"
-            }`}
+            href="/login"
+            className="rounded-full bg-white px-5 py-2.5 shadow-sm ring-1 ring-black/10 hover:bg-[#f6f8f4]"
           >
-            {link.label}
+            Sign in
           </Link>
-        ))}
+        )}
+
+        {isSignedIn && (
+          <button
+            type="button"
+            onClick={signOut}
+            className="rounded-full bg-white px-5 py-2.5 shadow-sm ring-1 ring-black/10 hover:bg-[#f6f8f4]"
+          >
+            Sign out
+          </button>
+        )}
       </div>
     </nav>
   );
