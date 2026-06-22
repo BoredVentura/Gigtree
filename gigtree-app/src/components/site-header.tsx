@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
@@ -47,16 +48,16 @@ export function SiteHeader({ active }: SiteHeaderProps) {
 
   return (
     <nav className="flex flex-wrap items-center justify-between gap-4">
-      <a href="/" className="flex items-center gap-3">
+      <Link href="/" className="flex items-center gap-3">
         <span className="grid h-11 w-11 place-items-center rounded-2xl bg-[#2f6f3e] text-xl text-white shadow-lg shadow-[#2f6f3e]/20">
           ✦
         </span>
         <span className="text-2xl font-black tracking-tight">Gigtree</span>
-      </a>
+      </Link>
 
       <div className="flex flex-wrap items-center gap-2 text-sm font-semibold">
         {links.map((link) => (
-          <a
+          <Link
             key={link.key}
             href={link.href}
             className={`rounded-full px-4 py-2 ${
@@ -66,7 +67,7 @@ export function SiteHeader({ active }: SiteHeaderProps) {
             }`}
           >
             {link.label}
-          </a>
+          </Link>
         ))}
       </div>
     </nav>

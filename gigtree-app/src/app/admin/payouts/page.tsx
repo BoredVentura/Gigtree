@@ -5,6 +5,12 @@ import { supabase } from "@/lib/supabase";
 import { SiteHeader } from "@/components/site-header";
 import { createAuditLog } from "@/lib/audit-log";
 
+type GigLookup = {
+  id: string;
+  title: string;
+  category: string;
+};
+
 type Payment = {
   id: string;
   gig_id: string;
@@ -59,7 +65,6 @@ export default function AdminPayoutsPage() {
       .select(
         "id,gig_id,poster_id,worker_id,amount_gbp,commission_amount_gbp,worker_payout_amount_gbp,status,created_at"
       )
-      .in("status", ["ready_for_release", "released"])
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -67,7 +72,24 @@ export default function AdminPayoutsPage() {
       return;
     }
 
-    setPayments((data ?? []) as Payment[]);
+    const paymentRows = (data ?? []) as Payment[];
+    const gigIds = Array.from(new Set(paymentRows.map((payment) => payment.gig_id)));
+
+    const { data: gigsData } = await supabase
+      .from("gigs")
+      .select("id,title,category")
+      .in("id", gigIds);
+
+    const gigMap = new Map(
+      ((gigsData ?? []) as GigLookup[]).map((gig) => [gig.id, gig])
+    );
+
+    const enrichedPayments = paymentRows.map((payment) => ({
+      ...payment,
+      gigs: gigMap.get(payment.gig_id) ?? null,
+    }));
+
+    setPayments(enrichedPayments as Payment[]);
     setMessage("");
   }
 
@@ -81,6 +103,13 @@ export default function AdminPayoutsPage() {
 
   const releasedPayments = useMemo(() => {
     return payments.filter((payment) => payment.status === "released");
+  }, [payments]);
+
+  const otherPayments = useMemo(() => {
+    return payments.filter(
+      (payment) =>
+        payment.status !== "ready_for_release" && payment.status !== "released"
+    );
   }, [payments]);
 
   async function releasePayment(payment: Payment) {
@@ -237,6 +266,64 @@ export default function AdminPayoutsPage() {
                             : "Mark released"}
                         </button>
                       </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section>
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-3xl font-black">Other payment records</h2>
+              <span className="rounded-full bg-[#e8f0e4] px-4 py-2 text-sm font-semibold text-[#2f6f3e]">
+                {otherPayments.length} other
+              </span>
+            </div>
+
+            {otherPayments.length === 0 ? (
+              <div className="rounded-[2rem] bg-white p-6 text-[#42513c] shadow-sm ring-1 ring-black/10">
+                No held or pending payments.
+              </div>
+            ) : (
+              <div className="grid gap-5">
+                {otherPayments.map((payment) => (
+                  <article
+                    key={payment.id}
+                    className="rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-black/10"
+                  >
+                    <div className="mb-3 flex flex-wrap gap-2 text-sm">
+                      <span className="rounded-full bg-[#fff7e8] px-3 py-1 font-semibold text-[#8a5a00]">
+                        {formatStatus(payment.status)}
+                      </span>
+                      <span className="rounded-full bg-[#f6f8f4] px-3 py-1 font-semibold text-[#42513c]">
+                        Payment record
+                      </span>
+                    </div>
+
+                    <h3 className="text-2xl font-black">
+                      {payment.gigs?.title ?? `Gig ${payment.gig_id.slice(0, 8)}`}
+                    </h3>
+
+                    <div className="mt-4 grid gap-3 text-sm text-[#42513c] md:grid-cols-3">
+                      <p className="rounded-2xl bg-[#f6f8f4] p-4">
+                        <span className="block font-semibold text-[#142014]">
+                          Total
+                        </span>
+                        £{payment.amount_gbp}
+                      </p>
+                      <p className="rounded-2xl bg-[#f6f8f4] p-4">
+                        <span className="block font-semibold text-[#142014]">
+                          Commission
+                        </span>
+                        £{payment.commission_amount_gbp}
+                      </p>
+                      <p className="rounded-2xl bg-[#f6f8f4] p-4">
+                        <span className="block font-semibold text-[#142014]">
+                          Worker payout
+                        </span>
+                        £{payment.worker_payout_amount_gbp}
+                      </p>
                     </div>
                   </article>
                 ))}

@@ -1,4 +1,22 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
 export default function Home() {
+  const [isSignedIn, setIsSignedIn] = useState(false);
+
+  useEffect(() => {
+    async function loadUser() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      setIsSignedIn(Boolean(user));
+    }
+
+    loadUser();
+  }, []);
+
   return (
     <main className="min-h-screen overflow-hidden bg-[#fbfff6] text-[#142014]">
       <section className="relative">
@@ -23,10 +41,10 @@ export default function Home() {
                 How it works
               </a>
               <a
-                href="/login"
+                href={isSignedIn ? "/dashboard" : "/login"}
                 className="rounded-full bg-white px-5 py-2.5 shadow-sm ring-1 ring-black/10 hover:bg-[#f6f8f4]"
               >
-                Sign in
+                {isSignedIn ? "Dashboard" : "Sign in"}
               </a>
             </div>
           </nav>
